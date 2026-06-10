@@ -34,18 +34,34 @@
 
   function isManager() { return CURRENT_USER.role === 'manager'; }
 
+  function crmDeals() {
+    const leads = typeof getLeads === 'function' ? getLeads() : [];
+    if (!leads.length) return PRODUCTION_DEALS;
+    return leads.map(l => {
+      const created = new Date(l.createdAt || l.updatedAt || Date.now());
+      const age = Math.max(0, Math.round((Date.now() - created.getTime()) / 86400000));
+      return {
+        ownerId: l.ownerId,
+        repName: l.assignedTo || 'Unassigned',
+        name: (l.company || '') + ' — ' + (l.name || ''),
+        value: Number(l.dealSize || 0),
+        stage: l.stage || 'Prospecting',
+        probability: Number(l.probability || 0),
+        age,
+        source: l.source || 'Other',
+      };
+    });
+  }
+
   function populateRepDropdown() {
     const repDropdown = document.getElementById('filter-dropdown-rep');
     if (!repDropdown) return;
     if (isManager()) {
       repDropdown.disabled = false;
-      repDropdown.innerHTML = `
-        <option value="ALL">All Team Members</option>
-        <option value="101">Duy Nguyen</option>
-        <option value="102">Minh Tran</option>
-        <option value="103">Thu Nguyen</option>`;
+      repDropdown.innerHTML = '<option value="ALL">All Team Members</option>' +
+        ACCOUNTS.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
     } else {
-      repDropdown.innerHTML = '<option value="101">Duy Nguyen</option>';
+      repDropdown.innerHTML = `<option value="${CURRENT_USER.id}">${CURRENT_USER.name}</option>`;
       repDropdown.disabled = true;
     }
   }
@@ -191,15 +207,16 @@
     if (!isManager() || selectedRepValue !== 'ALL') {
       mgrContainer.style.display = 'none';
       repContainer.style.display = 'block';
-      const targetId = selectedRepValue === 'ALL' ? 101 : parseInt(selectedRepValue, 10);
-      const userDeals = PRODUCTION_DEALS.filter(d => d.ownerId === targetId);
+      const deals = crmDeals();
+      const targetId = selectedRepValue === 'ALL' ? CURRENT_USER.id : parseInt(selectedRepValue, 10);
+      const userDeals = deals.filter(d => d.ownerId === targetId);
       const won = userDeals.filter(d => d.stage === 'Closed Won');
       const lost = userDeals.filter(d => d.stage === 'Closed Lost');
       const closedCount = won.length + lost.length;
       const wonAmt = won.reduce((s, d) => s + d.value, 0);
       const lostAmt = lost.reduce((s, d) => s + d.value, 0);
       const rate = closedCount > 0 ? ((won.length / closedCount) * 100).toFixed(1) : 0;
-      const targetRep = PRODUCTION_DEALS.find(d => d.ownerId === targetId);
+      const targetRep = deals.find(d => d.ownerId === targetId);
       document.getElementById('rep-card-profile-header').textContent = `${targetRep?.repName || 'Sales Rep'} — Personal Performance Summary`;
       document.getElementById('rep-card-closed-count').textContent = `${closedCount} Deals`;
       document.getElementById('rep-card-won-amt').textContent = `+$${wonAmt.toLocaleString()}`;
@@ -211,9 +228,10 @@
       const tbodyMgr = document.getElementById('render-body-perf-MANAGER');
       if (!tbodyMgr) return;
       tbodyMgr.innerHTML = '';
-      [101, 102, 103].forEach(id => {
-        const rDeals = PRODUCTION_DEALS.filter(d => d.ownerId === id);
-        const nameStr = rDeals[0]?.repName || 'Sales Rep';
+      const deals = crmDeals();
+      ACCOUNTS.forEach(a => {
+        const rDeals = deals.filter(d => d.ownerId === a.id);
+        const nameStr = a.name;
         const won = rDeals.filter(d => d.stage === 'Closed Won');
         const lost = rDeals.filter(d => d.stage === 'Closed Lost');
         const closedCount = won.length + lost.length;
@@ -256,9 +274,10 @@
   function executeComputationGrid() {
     const repEl = document.getElementById('filter-dropdown-rep');
     const selectedRepValue = repEl ? repEl.value : 'ALL';
+    const deals = crmDeals();
     let filteredDeals = selectedRepValue === 'ALL'
-      ? [...PRODUCTION_DEALS]
-      : PRODUCTION_DEALS.filter(d => d.ownerId === parseInt(selectedRepValue, 10));
+      ? deals
+      : deals.filter(d => d.ownerId === parseInt(selectedRepValue, 10));
     compileTab1Pipeline(filteredDeals);
     compileTab2Performance(selectedRepValue);
     compileTab3Sourcing(filteredDeals);

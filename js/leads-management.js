@@ -7,6 +7,26 @@ function getLeadStatusBadge(s) {
   return m[s] || 'badge-new';
 }
 
+async function persistLead(lead, after) {
+  if (!window.SalesTrackSupabase) return;
+  try {
+    await window.SalesTrackSupabase.saveLeadRecord(lead);
+    if (typeof after === 'function') after();
+  } catch (e) {
+    showToast(e.message || 'Unable to save lead to Supabase', 'error');
+  }
+}
+
+async function persistActivity(activity, after) {
+  if (!window.SalesTrackSupabase) return;
+  try {
+    await window.SalesTrackSupabase.saveActivityRecord(activity);
+    if (typeof after === 'function') after();
+  } catch (e) {
+    showToast(e.message || 'Unable to save activity to Supabase', 'error');
+  }
+}
+
 function getLastActivity(lead) {
   const acts = getActivities().filter(a => a.leadId === lead.id);
   if (!acts.length) return { icon: '—', label: '—', date: lead.createdAt };
@@ -46,9 +66,7 @@ function getLeadsHTML() {
         ${isManager ? `
         <select class="form-input" style="width:160px" id="lead-assignee-filter" onchange="filterLeads()">
           <option value="">All Sales Members</option>
-          <option value="Duy Trần">Duy Trần</option>
-          <option value="Mai Lê">Mai Lê</option>
-          <option value="Hùng Võ">Hùng Võ</option>
+          ${ACCOUNTS.filter(a => a.role !== 'manager').map(a => `<option value="${a.name}">${a.name}</option>`).join('')}
         </select>` : `
         <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--accent-light);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius);font-size:12px;color:var(--accent-text)">
           <i class="fa-solid fa-user-tie"></i>
@@ -223,9 +241,7 @@ function openLeadDrawer(id) {
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px">
         <select class="form-input" id="drawer-reassign-select" style="flex:1;font-size:12px">
           <option value="">— Reassign to —</option>
-          <option value="Duy Trần" ${lead.assignedTo === 'Duy Trần' ? 'selected' : ''}>Duy Trần</option>
-          <option value="Mai Lê" ${lead.assignedTo === 'Mai Lê' ? 'selected' : ''}>Mai Lê</option>
-          <option value="Hùng Võ" ${lead.assignedTo === 'Hùng Võ' ? 'selected' : ''}>Hùng Võ</option>
+          ${ACCOUNTS.filter(a => a.role !== 'manager').map(a => `<option value="${a.name}" ${lead.assignedTo === a.name ? 'selected' : ''}>${a.name}</option>`).join('')}
         </select>
         <button class="btn btn-primary btn-sm" onclick="reassignLead('${lead.id}')"><i class="fa-solid fa-user-check"></i> Assign</button>
       </div>` : ''}
@@ -302,7 +318,7 @@ function logDrawerActivity(leadId) {
   if (!notes) { showToast('Please enter notes', 'error'); return; }
   const lead = getLeads().find(l => l.id === leadId);
   const acts = getActivities();
-  acts.push({
+  const newAct = {
     id: 'act_' + Date.now(),
     type, leadId,
     leadName: lead?.name || '',
@@ -312,8 +328,11 @@ function logDrawerActivity(leadId) {
     duration: 0,
     notes,
     nextAction: '',
+    ownerId: CURRENT_USER.id,
+    salesId: CURRENT_USER.salesId,
     createdAt: new Date().toISOString()
-  });
+  };
+  acts.push(newAct);
   saveActivities(acts);
   const leads = getLeads();
   const idx = leads.findIndex(l => l.id === leadId);
@@ -321,6 +340,11 @@ function logDrawerActivity(leadId) {
   openLeadDrawer(leadId);
   renderLeadsTable();
   if (currentPage === 'deals') renderDealsTable();
+  persistActivity(newAct, () => {
+    openLeadDrawer(leadId);
+    renderLeadsTable();
+    if (currentPage === 'deals') renderDealsTable();
+  });
 }
 
 function reassignLead(leadId) {
@@ -336,7 +360,7 @@ function reassignLead(leadId) {
   leads[idx].updatedAt = new Date().toISOString();
   saveLeads(leads);
   const acts = getActivities();
-  acts.push({
+  const newAct = {
     id: 'act_' + Date.now(),
     type: 'System',
     leadId,
@@ -347,11 +371,20 @@ function reassignLead(leadId) {
     duration: 0,
     notes: `Lead reassigned from ${oldAssignee} → ${newAssignee} by ${CURRENT_USER.name}.`,
     nextAction: '',
+    ownerId: CURRENT_USER.id,
+    salesId: CURRENT_USER.salesId,
     createdAt: new Date().toISOString()
-  });
+  };
+  acts.push(newAct);
   saveActivities(acts);
   openLeadDrawer(leadId);
   renderLeadsTable();
+  persistLead(leads[idx], () => {
+    persistActivity(newAct, () => {
+      openLeadDrawer(leadId);
+      renderLeadsTable();
+    });
+  });
 }
 
 let _convertLeadId = null;
@@ -390,7 +423,7 @@ function saveConvertDeal() {
     saveLeads(leads);
   }
   const acts = getActivities();
-  acts.push({
+  const newAct = {
     id: 'act_' + Date.now(),
     type: 'System',
     leadId: _convertLeadId,
@@ -401,13 +434,25 @@ function saveConvertDeal() {
     duration: 0,
     notes: 'Lead converted into pipeline opportunity.',
     nextAction: '',
+    ownerId: CURRENT_USER.id,
+    salesId: CURRENT_USER.salesId,
     createdAt: new Date().toISOString()
-  });
+  };
+  acts.push(newAct);
   saveActivities(acts);
   closeModal('convert-modal');
   renderLeadsTable();
   updateLeadsBadge();
   if (currentPage === 'deals') renderDealsTable();
+  if (idx > -1) {
+    persistLead(leads[idx], () => {
+      persistActivity(newAct, () => {
+        renderLeadsTable();
+        updateLeadsBadge();
+        if (currentPage === 'deals') renderDealsTable();
+      });
+    });
+  }
 }
 
 let _rejectLeadId = null;
@@ -425,7 +470,7 @@ function confirmRejectLead() {
     saveLeads(leads);
   }
   const acts = getActivities();
-  acts.push({
+  const newAct = {
     id: 'act_' + Date.now(),
     type: 'System',
     leadId: _rejectLeadId,
@@ -436,12 +481,23 @@ function confirmRejectLead() {
     duration: 0,
     notes: 'Lead marked as Rejected.',
     nextAction: '',
+    ownerId: CURRENT_USER.id,
+    salesId: CURRENT_USER.salesId,
     createdAt: new Date().toISOString()
-  });
+  };
+  acts.push(newAct);
   saveActivities(acts);
   closeModal('reject-modal');
   renderLeadsTable();
   updateLeadsBadge();
+  if (idx > -1) {
+    persistLead(leads[idx], () => {
+      persistActivity(newAct, () => {
+        renderLeadsTable();
+        updateLeadsBadge();
+      });
+    });
+  }
 }
 
 let _addLeadActivities = [];
@@ -568,6 +624,8 @@ function saveNewLead() {
           duration: 0,
           notes: a.description,
           nextAction: '',
+          ownerId: CURRENT_USER.id,
+          salesId: CURRENT_USER.salesId,
           createdAt: now
         });
       }
@@ -578,6 +636,28 @@ function saveNewLead() {
   closeModal('add-lead-modal');
   renderLeadsTable();
   updateLeadsBadge();
+  persistLead(newLead, async function () {
+    for (const a of _addLeadActivities) {
+      if (!a.description) continue;
+      await persistActivity({
+        id: 'act_' + Date.now() + Math.random(),
+        type: a.type,
+        leadId: newLead.id,
+        leadName: name,
+        company,
+        stage: 'Prospecting',
+        date: a.date || now,
+        duration: 0,
+        notes: a.description,
+        nextAction: '',
+        ownerId: CURRENT_USER.id,
+        salesId: CURRENT_USER.salesId,
+        createdAt: now
+      });
+    }
+    renderLeadsTable();
+    updateLeadsBadge();
+  });
 }
 
 function exportLeadsExcel() {

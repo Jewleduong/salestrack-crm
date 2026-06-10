@@ -7,11 +7,10 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/salestrack.css">
-<script>try{if(sessionStorage.getItem('st_authed')==='1')document.documentElement.classList.add('st-authed');}catch(e){}</script>
-<style>.st-authed #signin-overlay{display:none !important;}</style>
 </head>
 <body data-role="manager">
 
@@ -34,53 +33,25 @@
       </div>
     </div>
     <div class="signin-right">
-      <div style="font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Welcome back 👋</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Chọn tài khoản để đăng nhập phân quyền hệ thống</div>
+      <div style="font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:4px">Welcome back</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Sign in with your Supabase CRM account.</div>
 
-      <div class="role-card selected" id="account-card-0" onclick="selectAccount(0)">
-        <div class="account-signin-avatar" style="background:#d97706">AN</div>
-        <div style="flex:1;min-width:0">
-          <div class="role-card-name">Anna Nguyen</div>
-          <div class="role-card-desc">anna.nguyen@salestrack.vn</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label class="form-label">Email</label>
+          <input class="form-input" id="signin-email" type="email" autocomplete="email" placeholder="name@company.com" onkeydown="if(event.key==='Enter')doSignIn()">
         </div>
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#fffbeb;color:#d97706;white-space:nowrap;flex-shrink:0">Account Manager</span>
-        <div class="role-check" style="margin-left:8px"><i class="fa-solid fa-check"></i></div>
+        <div>
+          <label class="form-label">Password</label>
+          <input class="form-input" id="signin-password" type="password" autocomplete="current-password" placeholder="Enter password" onkeydown="if(event.key==='Enter')doSignIn()">
+        </div>
+        <div id="signin-error" style="display:none;font-size:12px;line-height:1.5;color:var(--red-text);background:var(--red-bg);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius);padding:9px 11px"></div>
       </div>
 
-      <div class="role-card" id="account-card-1" onclick="selectAccount(1)">
-        <div class="account-signin-avatar" style="background:#6366f1">DT</div>
-        <div style="flex:1;min-width:0">
-          <div class="role-card-name">Duy Trần</div>
-          <div class="role-card-desc">duy.tran@salestrack.vn</div>
-        </div>
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#eef2ff;color:#4f46e5;white-space:nowrap;flex-shrink:0">Account Sales</span>
-        <div class="role-check" style="margin-left:8px"><i class="fa-solid fa-check"></i></div>
-      </div>
-
-      <div class="role-card" id="account-card-2" onclick="selectAccount(2)">
-        <div class="account-signin-avatar" style="background:#10b981">ML</div>
-        <div style="flex:1;min-width:0">
-          <div class="role-card-name">Mai Lê</div>
-          <div class="role-card-desc">mai.le@salestrack.vn</div>
-        </div>
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#f0fdf4;color:#065f46;white-space:nowrap;flex-shrink:0">Account Sales</span>
-        <div class="role-check" style="margin-left:8px"><i class="fa-solid fa-check"></i></div>
-      </div>
-
-      <div class="role-card" id="account-card-3" onclick="selectAccount(3)">
-        <div class="account-signin-avatar" style="background:#8b5cf6">HV</div>
-        <div style="flex:1;min-width:0">
-          <div class="role-card-name">Hùng Võ</div>
-          <div class="role-card-desc">hung.vo@salestrack.vn</div>
-        </div>
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:#f5f3ff;color:#5b21b6;white-space:nowrap;flex-shrink:0">Account Sales</span>
-        <div class="role-check" style="margin-left:8px"><i class="fa-solid fa-check"></i></div>
-      </div>
-
-      <button class="signin-btn" id="signin-btn" onclick="doSignIn()">
-        <i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập hệ thống — <span id="signin-role-label">Anna Nguyen</span>
+      <button class="signin-btn" id="signin-btn" onclick="doSignIn()" style="margin-top:16px">
+        <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign in
       </button>
-      <div style="margin-top:14px;text-align:center;font-size:12px;color:var(--text-muted)">Demo mode — no password required</div>
+      <div style="margin-top:14px;text-align:center;font-size:12px;color:var(--text-muted)">Powered by Supabase Auth</div>
     </div>
   </div>
 </div>
@@ -1073,28 +1044,41 @@ function selectAccount(id) {
 }
 function selectRole(r) {} // legacy stub
 
-function doSignIn() {
+async function doSignIn() {
+  const email = document.getElementById('signin-email')?.value?.trim();
+  const password = document.getElementById('signin-password')?.value || '';
+  const err = document.getElementById('signin-error');
   const btn = document.getElementById('signin-btn');
+  if (err) { err.style.display = 'none'; err.textContent = ''; }
+  if (!email || !password) {
+    if (err) { err.textContent = 'Please enter both email and password.'; err.style.display = 'block'; }
+    return;
+  }
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Signing in...';
-  setTimeout(() => {
-    applyAccount(_selectedAccountId);
-    try { sessionStorage.setItem('st_authed', '1'); } catch (e) {}
-    const overlay = document.getElementById('signin-overlay');
-    overlay.classList.add('hidden');
-    setTimeout(() => overlay.style.display = 'none', 350);
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập hệ thống — <span id="signin-role-label">' + ACCOUNTS[_selectedAccountId].name + '</span>';
+  try {
+    await window.SalesTrackSupabase.signIn(email, password);
+    updateLeadsBadge();
     navigateTo(pageFromHash());
-  }, 700);
+  } catch (e) {
+    if (err) {
+      err.textContent = e.message || 'Unable to sign in.';
+      err.style.display = 'block';
+    } else {
+      showToast(e.message || 'Unable to sign in', 'error');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Sign in';
+  }
 }
-function doSignOut() {
+async function doSignOut() {
   if (!confirm('Are you sure you want to sign out?')) return;
-  try { sessionStorage.removeItem('st_authed'); } catch (e) {}
-  const overlay = document.getElementById('signin-overlay');
-  overlay.style.display = 'flex';
-  setTimeout(() => overlay.classList.remove('hidden'), 10);
-  selectAccount(0);
+  try {
+    await window.SalesTrackSupabase.signOut();
+  } catch (e) {
+    showToast(e.message || 'Unable to sign out', 'error');
+  }
 }
 
 function applyAccount(id) {
@@ -1193,11 +1177,14 @@ const STAGES = ['Prospecting', 'Qualification', 'Proposal', 'Negotiation', 'Clos
 const DEFAULT_PROB = { Prospecting: 10, Qualification: 25, Proposal: 50, Negotiation: 75, 'Closed Won': 100, 'Closed Lost': 0 };
 const SOURCES = ['Website', 'Referral', 'Event', 'Cold Call'];
 
-// Sales team (drives "Assign To" + the manager's salesperson filter).
-// Anna = manager, the others = sales members. Built from the login accounts.
-const TEAM = ACCOUNTS.map(a => ({ name: a.name, role: a.role }));
-// Backwards-compat: list of names used by the manager filter dropdown.
-const SALESPEOPLE = TEAM.map(t => t.name);
+// Sales team (drives "Assign To" + filters). Supabase refreshes this after auth.
+const TEAM = [];
+const SALESPEOPLE = [];
+function refreshTeamFromAccounts() {
+  TEAM.splice(0, TEAM.length, ...ACCOUNTS.map(a => ({ name: a.name, role: a.role, id: a.id, salesId: a.salesId })));
+  SALESPEOPLE.splice(0, SALESPEOPLE.length, ...TEAM.map(t => t.name));
+}
+refreshTeamFromAccounts();
 
 // Manager may assign to anyone on the team (incl. herself); a salesperson self-assigns only.
 function getAssignableTeam() {
@@ -1210,6 +1197,16 @@ let dealView = 'table';
 let dealSearchQuery = '';
 let dealStageFilter = '';
 let dealSPFilter = '';
+
+async function persistDealLead(lead, after) {
+    if (!window.SalesTrackSupabase) return;
+    try {
+        await window.SalesTrackSupabase.saveLeadRecord(lead);
+        if (typeof after === 'function') after();
+    } catch (e) {
+        showToast(e.message || 'Unable to save deal to Supabase', 'error');
+    }
+}
 
 // Latest activity type for a deal/lead id ('' if none)
 // Sort by createdAt (when it was logged) — NOT by date (event date which can be
@@ -1471,6 +1468,7 @@ function shiftDealStage(id, dir) {
         leads[idx].updatedAt = new Date().toISOString();
         saveLeads(leads);
         renderDealsTable();
+        persistDealLead(leads[idx], renderDealsTable);
     }
 }
 
@@ -1485,6 +1483,7 @@ function dropDeal(e, stage) {
     leads[idx].updatedAt = new Date().toISOString();
     saveLeads(leads);
     renderPage('deals');
+    persistDealLead(leads[idx], () => renderPage('deals'));
 }
 
 function deleteDeal(id) {
@@ -1492,6 +1491,11 @@ function deleteDeal(id) {
     saveLeads(getLeads().filter(l => l.id !== id));
     renderPage('deals');
     showToast("Deal deleted", "error");
+    if (window.SalesTrackSupabase) {
+        window.SalesTrackSupabase.deleteLeadRecord(id)
+            .then(() => renderPage('deals'))
+            .catch(e => showToast(e.message || 'Unable to delete deal from Supabase', 'error'));
+    }
 }
 
 /* ===== CSV / Excel export of the Deal list (full columns) ===== */
@@ -1629,7 +1633,7 @@ function saveDeal() {
     const assignedTo = document.getElementById('deal-assign').value || CURRENT_USER.name;
     const now = new Date().toISOString();
     const leads = getLeads();
-    leads.push({
+    const newLead = {
         id: 'lead_' + Date.now(),
         name: _dealSelectedCustomer.name,
         company: _dealSelectedCustomer.company,
@@ -1644,11 +1648,13 @@ function saveDeal() {
         notes: dealName ? ('Deal: ' + dealName) : '',
         createdAt: now,
         updatedAt: now
-    });
+    };
+    leads.push(newLead);
     saveLeads(leads);
     closeModal('deal-add-modal');
     showToast('Deal created for ' + _dealSelectedCustomer.name + (CURRENT_USER.role === 'manager' ? ' · assigned to ' + assignedTo : ''), 'success');
     renderPage('deals');
+    persistDealLead(newLead, () => renderPage('deals'));
 }
 
 /* ===== Edit Deal ===== */
@@ -1689,6 +1695,7 @@ function saveEditDeal() {
     closeModal('deal-edit-modal');
     showToast('Deal updated successfully', 'success');
     renderPage('deals');
+    persistDealLead(leads[idx], () => renderPage('deals'));
 }
 
 // Close the customer dropdown when clicking outside of it
@@ -1733,6 +1740,15 @@ function saveEditActivity() {
   if (currentPage === 'activities' && typeof renderActivitiesPage === 'function') renderActivitiesPage();
   else if (currentPage === 'dashboard' && typeof renderDashboardCharts === 'function') renderDashboardCharts();
   else if (typeof openActivityDrawer === 'function') openActivityDrawer(id);
+  if (window.SalesTrackSupabase) {
+    window.SalesTrackSupabase.saveActivityRecord(acts[idx])
+      .then(() => {
+        if (currentPage === 'activities' && typeof renderActivitiesPage === 'function') renderActivitiesPage();
+        else if (currentPage === 'dashboard' && typeof renderDashboardCharts === 'function') renderDashboardCharts();
+        else if (typeof openActivityDrawer === 'function') openActivityDrawer(id);
+      })
+      .catch(e => showToast(e.message || 'Unable to save activity to Supabase', 'error'));
+  }
 }
 
 
@@ -1779,23 +1795,26 @@ function loadSampleData() {
 }
 
 /* ── BOOTSTRAP ── */
-function restoreAuthedSession() {
+async function restoreAuthedSession() {
+  const btn = document.getElementById('signin-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Restoring session...'; }
   try {
-    if (sessionStorage.getItem('st_authed') !== '1') return;
-    const saved = JSON.parse(localStorage.getItem('salestrack_current_user') || 'null');
-    if (saved && saved.email) {
-      const idx = ACCOUNTS.findIndex(a => a.email === saved.email);
-      if (idx >= 0) { _selectedAccountId = idx; selectAccount(idx); applyAccount(idx); }
-      else { Object.assign(CURRENT_USER, saved); updateUserUI(); }
+    return await window.SalesTrackSupabase.restoreSession();
+  } catch (e) {
+    const err = document.getElementById('signin-error');
+    if (err) {
+      err.textContent = e.message || 'Unable to restore session.';
+      err.style.display = 'block';
     }
-    const overlay = document.getElementById('signin-overlay');
-    if (overlay) { overlay.classList.add('hidden'); overlay.style.display = 'none'; }
-  } catch (e) {}
+    return false;
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Sign in'; }
+  }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-  restoreAuthedSession();
-  updateLeadsBadge();
+document.addEventListener('DOMContentLoaded', async function() {
+  const authed = await restoreAuthedSession();
+  if (authed) updateLeadsBadge();
   if (window.innerWidth <= 768) {
     const btn = document.getElementById('sidebar-toggle');
     if (btn) btn.style.display = 'flex';
@@ -1804,9 +1823,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const p = pageFromHash();
     if (p !== currentPage) navigateTo(p, true);
   });
-  navigateTo(pageFromHash(), true);
+  if (authed) {
+    navigateTo(pageFromHash(), true);
+  } else {
+    updateUserUI();
+  }
 });
 </script>
+<script src="js/supabase-client.js"></script>
 <script type="module">
   try {
     if (import.meta && import.meta.env && import.meta.env.VITE_GOOGLE_AI_KEY) {

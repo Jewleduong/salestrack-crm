@@ -9,12 +9,50 @@
   let _selectedAssignee = null;
   let _todoMemberFilter = null;
 
-  window.getScheduled = function () { return JSON.parse(localStorage.getItem('st_scheduled') || '[]'); };
-  window.saveScheduled = function (d) { localStorage.setItem('st_scheduled', JSON.stringify(d)); };
-  window.getLeadRules = function () {
-    return JSON.parse(localStorage.getItem('st_lead_rules') || '{"warmDays":7,"coldDays":14,"stages":["Prospecting","Qualification","Proposal","Negotiation"]}');
-  };
-  window.saveLeadRulesData = function (d) { localStorage.setItem('st_lead_rules', JSON.stringify(d)); };
+  if (typeof window.getScheduled !== 'function') {
+    window.getScheduled = function () { return JSON.parse(localStorage.getItem('st_scheduled') || '[]'); };
+  }
+  if (typeof window.saveScheduled !== 'function') {
+    window.saveScheduled = function (d) { localStorage.setItem('st_scheduled', JSON.stringify(d)); };
+  }
+  if (typeof window.getLeadRules !== 'function') {
+    window.getLeadRules = function () {
+      return JSON.parse(localStorage.getItem('st_lead_rules') || '{"warmDays":7,"coldDays":14,"stages":["Prospecting","Qualification","Proposal","Negotiation"]}');
+    };
+  }
+  if (typeof window.saveLeadRulesData !== 'function') {
+    window.saveLeadRulesData = function (d) { localStorage.setItem('st_lead_rules', JSON.stringify(d)); };
+  }
+
+  async function persistScheduled(todo, after) {
+    if (!window.SalesTrackSupabase) return;
+    try {
+      await window.SalesTrackSupabase.saveScheduledRecord(todo);
+      if (typeof after === 'function') after();
+    } catch (e) {
+      showToast(e.message || 'Unable to save scheduled todo to Supabase', 'error');
+    }
+  }
+
+  async function removeScheduled(id, after) {
+    if (!window.SalesTrackSupabase) return;
+    try {
+      await window.SalesTrackSupabase.deleteScheduledRecord(id);
+      if (typeof after === 'function') after();
+    } catch (e) {
+      showToast(e.message || 'Unable to delete scheduled todo from Supabase', 'error');
+    }
+  }
+
+  async function persistActivity(activity, after) {
+    if (!window.SalesTrackSupabase) return;
+    try {
+      await window.SalesTrackSupabase.saveActivityRecord(activity);
+      if (typeof after === 'function') after();
+    } catch (e) {
+      showToast(e.message || 'Unable to save activity to Supabase', 'error');
+    }
+  }
 
   function isManager() { return CURRENT_USER.role === 'manager'; }
 
@@ -368,11 +406,16 @@
     saveScheduled(sched);
     _renderTodayTodos();
     if (typeof renderActivitiesPage === 'function') renderActivitiesPage();
+    persistScheduled(item, () => {
+      _renderTodayTodos();
+      if (typeof renderActivitiesPage === 'function') renderActivitiesPage();
+    });
   };
 
   window.deleteTodo = function (id) {
     saveScheduled(getScheduled().filter(s => s.id !== id));
     _renderTodayTodos();
+    removeScheduled(id, _renderTodayTodos);
   };
 
   function _renderColdAlerts() {
@@ -585,6 +628,11 @@
     saveLeadRulesData({ warmDays, coldDays, stages });
     closeModal('lead-rules-modal');
     if (typeof currentPage !== 'undefined' && currentPage === 'activities') { _renderColdAlerts(); renderLeadStatusList(); }
+    if (window.SalesTrackSupabase) {
+      window.SalesTrackSupabase.saveLeadRulesRecord({ warmDays, coldDays, stages })
+        .then(() => { if (typeof currentPage !== 'undefined' && currentPage === 'activities') { _renderColdAlerts(); renderLeadStatusList(); } })
+        .catch(e => showToast(e.message || 'Unable to save lead rules to Supabase', 'error'));
+    }
   };
 
   window.exportActivitiesCSV = function () {
@@ -660,6 +708,14 @@
     closeDrawer();
     if (typeof currentPage !== 'undefined' && currentPage === 'activities') renderActivitiesPage();
     if (typeof currentPage !== 'undefined' && currentPage === 'dashboard' && typeof renderDashboardCharts === 'function') renderDashboardCharts();
+    if (window.SalesTrackSupabase) {
+      window.SalesTrackSupabase.deleteActivityRecord(id)
+        .then(() => {
+          if (typeof currentPage !== 'undefined' && currentPage === 'activities') renderActivitiesPage();
+          if (typeof currentPage !== 'undefined' && currentPage === 'dashboard' && typeof renderDashboardCharts === 'function') renderDashboardCharts();
+        })
+        .catch(e => showToast(e.message || 'Unable to delete activity from Supabase', 'error'));
+    }
   };
 
   window.openAddActivityModal = function () {
@@ -713,6 +769,9 @@
       saveScheduled(all);
       closeModal('add-activity-modal');
       if (typeof currentPage !== 'undefined' && currentPage === 'activities') renderActivitiesPage();
+      persistScheduled(newSched, () => {
+        if (typeof currentPage !== 'undefined' && currentPage === 'activities') renderActivitiesPage();
+      });
     } else {
       const date = document.getElementById('new-act-date')?.value;
       const duration = parseInt(document.getElementById('new-act-duration')?.value, 10) || 0;
@@ -734,6 +793,12 @@
       if (typeof currentPage !== 'undefined' && currentPage === 'dashboard' && typeof renderDashboardCharts === 'function') renderDashboardCharts();
       if (typeof currentPage !== 'undefined' && currentPage === 'deals' && typeof renderDealsTable === 'function') renderDealsTable();
       if (typeof currentPage !== 'undefined' && currentPage === 'leads' && typeof renderLeadsTable === 'function') renderLeadsTable();
+      persistActivity(newAct, () => {
+        if (typeof currentPage !== 'undefined' && currentPage === 'activities') renderActivitiesPage();
+        if (typeof currentPage !== 'undefined' && currentPage === 'dashboard' && typeof renderDashboardCharts === 'function') renderDashboardCharts();
+        if (typeof currentPage !== 'undefined' && currentPage === 'deals' && typeof renderDealsTable === 'function') renderDealsTable();
+        if (typeof currentPage !== 'undefined' && currentPage === 'leads' && typeof renderLeadsTable === 'function') renderLeadsTable();
+      });
     }
   };
 })();

@@ -630,8 +630,7 @@ function sendEmail() {
   showToast('Opening your email client…', 'info');
 
   if (lead && typeof saveActivities === 'function') {
-    const acts = aiGetActivities();
-    acts.unshift({
+    const newAct = {
       id: 'act_' + Date.now(),
       type: 'Email',
       leadId: lead.id,
@@ -640,9 +639,17 @@ function sendEmail() {
       stage: lead.stage,
       date: new Date().toISOString(),
       notes: `Sent: ${subject}`,
+      ownerId: CURRENT_USER?.id,
+      salesId: CURRENT_USER?.salesId,
       createdAt: new Date().toISOString()
-    });
+    };
+    const acts = aiGetActivities();
+    acts.unshift(newAct);
     saveActivities(acts);
+    if (window.SalesTrackSupabase) {
+      window.SalesTrackSupabase.saveActivityRecord(newAct)
+        .catch(e => showToast(e.message || 'Unable to save email activity to Supabase', 'error'));
+    }
   }
 }
 

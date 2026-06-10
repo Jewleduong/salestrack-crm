@@ -29,13 +29,17 @@
   ];
 
   const USER_ID_MAP = { 'Anna Nguyen': 0, 'Duy Trần': 101, 'Duy Nguyen': 101, 'Mai Lê': 102, 'Minh Tran': 102, 'Hùng Võ': 103, 'Thu Nguyen': 103 };
+  function ownerIdForName(name) {
+    const acc = typeof ACCOUNTS !== 'undefined' ? ACCOUNTS.find(a => a.name === name) : null;
+    return acc ? acc.id : (USER_ID_MAP[name] || 101);
+  }
 
   let pipelineChart = null;
   let leadDonutChart = null;
 
   function leadsToDeals(leads) {
     return leads.map(l => ({
-      ownerId: l.ownerId || USER_ID_MAP[l.assignedTo] || 101,
+      ownerId: l.ownerId ?? ownerIdForName(l.assignedTo),
       repName: l.assignedTo || 'Unassigned',
       name: (l.company || '') + ' — ' + (l.name || ''),
       value: l.dealSize || 0,
@@ -49,7 +53,7 @@
     const leads = typeof getLeads === 'function' ? getLeads() : [];
     let deals = leads.length ? leadsToDeals(leads) : [...MASTER_DEALS];
     if (CURRENT_USER.role !== 'manager') {
-      const uid = USER_ID_MAP[CURRENT_USER.name] || 101;
+      const uid = CURRENT_USER.id ?? ownerIdForName(CURRENT_USER.name);
       deals = deals.filter(d => d.ownerId === uid);
     }
     const startEl = document.getElementById('dashboard-start-date');
@@ -130,12 +134,7 @@
         <div style="padding:14px 18px;background:var(--bg-input);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
           <div style="font-size:13px;font-weight:700"><i class="fa-regular fa-clock" style="color:var(--accent);margin-right:6px"></i> Upcoming Timeline Activities</div>
           <div id="timeline-filter-wrapper" style="display:none">
-            <select id="timeline-rep-filter" onchange="filterUpcomingTimelineFeed()" class="form-input" style="width:auto;padding:4px 8px;font-size:11px">
-              <option value="ALL">All Team Members</option>
-              <option value="101">Duy Nguyen</option>
-              <option value="102">Minh Tran</option>
-              <option value="103">Thu Nguyen</option>
-            </select>
+            <select id="timeline-rep-filter" onchange="filterUpcomingTimelineFeed()" class="form-input" style="width:auto;padding:4px 8px;font-size:11px"></select>
           </div>
         </div>
         <div id="render-timeline-body" style="padding:16px 24px;overflow-y:auto;flex:1"></div>
@@ -157,11 +156,15 @@
     const filterWrap = document.getElementById('timeline-filter-wrapper');
     if (CURRENT_USER.role === 'manager') {
       if (filterWrap) filterWrap.style.display = 'block';
-      const sel = document.getElementById('timeline-rep-filter')?.value || 'ALL';
+      const select = document.getElementById('timeline-rep-filter');
+      if (select && !select.options.length) {
+        select.innerHTML = '<option value="ALL">All Team Members</option>' + ACCOUNTS.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+      }
+      const sel = select?.value || 'ALL';
       if (sel !== 'ALL') acts = acts.filter(a => a.ownerId === parseInt(sel, 10));
     } else {
       if (filterWrap) filterWrap.style.display = 'none';
-      const uid = USER_ID_MAP[CURRENT_USER.name] || 101;
+      const uid = CURRENT_USER.id ?? ownerIdForName(CURRENT_USER.name);
       acts = acts.filter(a => a.ownerId === uid);
     }
     const baseline = new Date('2026-06-10T00:00:00Z');
