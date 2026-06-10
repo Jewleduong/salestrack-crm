@@ -6,6 +6,7 @@
 <title>SalesTrack CRM</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/salestrack.css">
@@ -430,50 +431,241 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="add-activity-modal">
+<div class="modal-overlay" id="convert-modal">
   <div class="modal-card">
     <div class="modal-header">
-      <div class="modal-title"><i class="fa-solid fa-plus" style="color:var(--accent);margin-right:8px"></i>Log Activity</div>
-      <button class="modal-close" onclick="closeModal('add-activity-modal')"><i class="fa-solid fa-xmark"></i></button>
+      <div class="modal-title"><i class="fa-solid fa-check-circle" style="color:var(--green);margin-right:8px"></i>Convert to Pipeline Deal</div>
+      <button class="modal-close" onclick="closeModal('convert-modal')"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div style="display:flex;flex-direction:column;gap:14px">
       <div>
-        <label class="form-label">Activity Type</label>
-        <select class="form-input" id="new-act-type">
-          <option value="Call">📞 Call</option>
-          <option value="Email">📧 Email</option>
-          <option value="Meeting">🤝 Meeting</option>
-          <option value="Note">📝 Note</option>
-        </select>
-      </div>
-      <div>
-        <label class="form-label">Lead</label>
-        <select class="form-input" id="new-act-lead">
-          <option value="">Select a lead...</option>
-        </select>
+        <label class="form-label">Deal Name *</label>
+        <input class="form-input" id="convert-deal-name" placeholder="Deal name...">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div>
-          <label class="form-label">Date</label>
-          <input type="date" class="form-input" id="new-act-date">
+          <label class="form-label">Account Company</label>
+          <input class="form-input" id="convert-company" readonly style="opacity:.7;cursor:not-allowed">
         </div>
         <div>
-          <label class="form-label">Duration (min)</label>
-          <input type="number" class="form-input" id="new-act-duration" placeholder="30" min="0">
+          <label class="form-label">Primary Contact</label>
+          <input class="form-input" id="convert-contact" readonly style="opacity:.7;cursor:not-allowed">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="form-label">Deal Value ($) *</label>
+          <input class="form-input" type="number" id="convert-value" placeholder="0">
+        </div>
+        <div>
+          <label class="form-label">Expected Close Date *</label>
+          <input class="form-input" type="date" id="convert-close-date">
         </div>
       </div>
       <div>
-        <label class="form-label">Notes</label>
-        <textarea class="form-input" id="new-act-notes" rows="3" placeholder="What happened? Key points discussed..."></textarea>
+        <label class="form-label">Initial Pipeline Stage *</label>
+        <select class="form-input" id="convert-stage">
+          <option>Prospecting (10%)</option>
+          <option>Qualification (30%)</option>
+          <option>Proposal (50%)</option>
+          <option>Negotiation (80%)</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('convert-modal')">Cancel</button>
+      <button class="btn btn-success" onclick="saveConvertDeal()"><i class="fa-solid fa-check"></i> Save Deal</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="reject-modal">
+  <div class="modal-card" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fa-solid fa-triangle-exclamation" style="color:var(--red);margin-right:8px"></i>Reject Lead?</div>
+      <button class="modal-close" onclick="closeModal('reject-modal')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="padding:8px 0 16px">
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.6">Are you sure you want to reject this lead? This action cannot be undone.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('reject-modal')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmRejectLead()"><i class="fa-solid fa-xmark"></i> Reject</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="add-lead-modal">
+  <div class="modal-card wide" style="max-width:720px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fa-solid fa-user-plus" style="color:var(--accent);margin-right:8px"></i>Create New Lead</div>
+      <button class="modal-close" onclick="closeModal('add-lead-modal')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <form id="new-lead-form" onsubmit="return false">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+        <div>
+          <label class="form-label">Lead ID</label>
+          <input class="form-input" id="new-lead-id" readonly style="opacity:.6;cursor:not-allowed">
+        </div>
+        <div>
+          <label class="form-label">Full Name *</label>
+          <input class="form-input" id="new-lead-name" placeholder="Full name...">
+        </div>
+        <div>
+          <label class="form-label">Company *</label>
+          <input class="form-input" id="new-lead-company" placeholder="Company name...">
+        </div>
+        <div>
+          <label class="form-label">Industry *</label>
+          <select class="form-input" id="new-lead-industry">
+            <option value="">Select industry...</option>
+            <option>Consulting</option><option>Education</option><option>FMCG</option>
+            <option>Finance</option><option>Healthcare</option><option>Logistics</option>
+            <option>Retail</option><option>Technology</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Email *</label>
+          <input class="form-input" type="email" id="new-lead-email" placeholder="email@company.com">
+        </div>
+        <div>
+          <label class="form-label">Phone</label>
+          <input class="form-input" id="new-lead-phone" placeholder="+84 900 000 000">
+        </div>
+        <div>
+          <label class="form-label">Website</label>
+          <input class="form-input" id="new-lead-website" placeholder="www.company.com">
+        </div>
+        <div>
+          <label class="form-label">City</label>
+          <input class="form-input" id="new-lead-city" placeholder="City...">
+        </div>
+        <div>
+          <label class="form-label">Lead Source *</label>
+          <select class="form-input" id="new-lead-source" onchange="checkOtherSource()">
+            <option value="">Select source...</option>
+            <option>Cold Call</option><option>Event</option><option>LinkedIn</option>
+            <option>Referral</option><option>Website</option><option>Other</option>
+          </select>
+        </div>
+        <div id="new-lead-source-other" style="display:none">
+          <label class="form-label">Please specify source *</label>
+          <input class="form-input" id="new-lead-source-other-val" placeholder="Specify source...">
+        </div>
+        <div id="new-lead-assigned-wrap">
+          <label class="form-label">Assigned To *</label>
+          <select class="form-input" id="new-lead-assigned">
+            <option value="">Select assignee...</option>
+            <option>Anna Nguyen</option><option>Duy Trần</option><option>Mai Lê</option><option>Hùng Võ</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <label class="form-label">Notes <span style="font-weight:400;color:var(--text-muted)" id="new-lead-notes-counter">0/500</span></label>
+        <textarea class="form-input" id="new-lead-notes" rows="3" placeholder="Additional notes..." oninput="updateNotesCounter()"></textarea>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em">Add Activity Log</div>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="addLeadActivityRow()"><i class="fa-solid fa-plus"></i> Add More</button>
+        </div>
+        <div id="new-lead-activities-list"></div>
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('add-lead-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewLead()"><i class="fa-solid fa-check"></i> Save Lead</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="add-activity-modal">
+  <div class="modal-card" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fa-solid fa-plus" style="color:var(--accent);margin-right:8px"></i>Log / Schedule</div>
+      <button class="modal-close" onclick="closeModal('add-activity-modal')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:3px;gap:3px">
+        <div id="mode-log" onclick="setActivityMode('log')" style="flex:1;text-align:center;padding:7px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff"><i class="fa-solid fa-check-circle" style="margin-right:5px"></i>Log (Done)</div>
+        <div id="mode-schedule" onclick="setActivityMode('schedule')" style="flex:1;text-align:center;padding:7px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text-secondary)"><i class="fa-solid fa-calendar-plus" style="margin-right:5px"></i>Schedule (To-Do)</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="form-label">Activity Type</label>
+          <select class="form-input" id="new-act-type">
+            <option value="Call">📞 Call</option>
+            <option value="Email">📧 Email</option>
+            <option value="Meeting">🤝 Meeting</option>
+            <option value="Note">📝 Note</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Lead</label>
+          <select class="form-input" id="new-act-lead"><option value="">Select a lead...</option></select>
+        </div>
+      </div>
+      <div id="logged-date-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label class="form-label">Activity Date</label><input type="date" class="form-input" id="new-act-date"></div>
+        <div><label class="form-label">Duration (min)</label><input type="number" class="form-input" id="new-act-duration" placeholder="30" min="0"></div>
+      </div>
+      <div id="scheduled-date-row" style="display:none;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label class="form-label">Scheduled Date</label><input type="date" class="form-input" id="new-act-sched-date"></div>
+        <div><label class="form-label">Scheduled Time</label><input type="time" class="form-input" id="new-act-sched-time" value="09:00"></div>
+      </div>
+      <div id="assign-to-row" style="display:none">
+        <label class="form-label"><i class="fa-solid fa-user-plus" style="color:var(--accent)"></i> Assign To</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px" id="assign-options"></div>
       </div>
       <div>
+        <label class="form-label" id="notes-label">Notes / What happened</label>
+        <textarea class="form-input" id="new-act-notes" rows="3" placeholder="Key points, agenda, or what happened..."></textarea>
+      </div>
+      <div id="next-action-row">
         <label class="form-label">Next Action</label>
         <input class="form-input" id="new-act-next" placeholder="e.g. Send proposal by Friday">
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('add-activity-modal')">Cancel</button>
-      <button class="btn btn-primary" onclick="saveActivity()"><i class="fa-solid fa-check"></i> Log Activity</button>
+      <button class="btn btn-primary" id="save-act-btn" onclick="saveActivity()"><i class="fa-solid fa-check"></i> Log Activity</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="lead-rules-modal">
+  <div class="modal-card" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fa-solid fa-fire" style="color:var(--amber);margin-right:8px"></i>Warm / Cold Lead Rules</div>
+      <button class="modal-close" onclick="closeModal('lead-rules-modal')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div style="padding:12px;background:var(--amber-bg);border-radius:var(--radius);border:1px solid rgba(245,158,11,0.25);font-size:12px;color:var(--amber-text)">
+        <i class="fa-solid fa-circle-info" style="margin-right:6px"></i>Set days without activity before a lead is flagged as cooling or cold.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div>
+          <label class="form-label">🌡️ Warm → Cooling (days)</label>
+          <input type="number" class="form-input" id="rule-warm-days" value="7" min="1" max="60">
+        </div>
+        <div>
+          <label class="form-label">🧊 Cooling → Cold (days)</label>
+          <input type="number" class="form-input" id="rule-cold-days" value="14" min="1" max="90">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Apply rules to these stages</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="rule-stage-Prospecting" checked> Prospecting</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="rule-stage-Qualification" checked> Qualification</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="rule-stage-Proposal" checked> Proposal</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="rule-stage-Negotiation" checked> Negotiation</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('lead-rules-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLeadRules()"><i class="fa-solid fa-check"></i> Save Rules</button>
     </div>
   </div>
 </div>
@@ -988,225 +1180,9 @@ function renderPage(page) {
   }
 }
 
-/* ======================================================
-   DASHBOARD PAGE
-====================================================== */
-function getDashboardHTML() {
-  return `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Dashboard</div>
-        <div class="page-subtitle" id="dash-greeting">Welcome back! Here's your pipeline overview.</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span style="font-size:12px;color:var(--text-muted);background:var(--bg-card);border:1px solid var(--border);padding:6px 12px;border-radius:20px">
-          <i class="fa-regular fa-calendar"></i> Monday, June 8, 2026
-        </span>
-        <button class="btn btn-primary btn-sm" onclick="loadSampleData()">
-          <i class="fa-solid fa-database"></i> Load Sample Data
-        </button>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px">
-      <div class="metric-card" style="border-left-color:var(--accent)"><div class="metric-label">Total Pipeline</div><div class="metric-value" style="color:var(--accent)" id="kpi-pipeline">$0</div><div class="metric-sub" id="kpi-pipeline-sub">0 active deals</div></div>
-      <div class="metric-card" style="border-left-color:var(--green)"><div class="metric-label">Weighted Forecast</div><div class="metric-value" style="color:var(--green)" id="kpi-forecast">$0</div><div class="metric-sub">based on probabilities</div></div>
-      <div class="metric-card" style="border-left-color:var(--amber)"><div class="metric-label">Win Rate</div><div class="metric-value" style="color:var(--amber)" id="kpi-winrate">0%</div><div class="metric-sub" id="kpi-winrate-sub">0 won deals</div></div>
-      <div class="metric-card" style="border-left-color:var(--blue)"><div class="metric-label">Active Deals</div><div class="metric-value" style="color:var(--blue)" id="kpi-active">0</div><div class="metric-sub">in pipeline</div></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:20px">
-      <div class="card"><div class="card-title">Pipeline by Stage <span>deals count</span></div><canvas id="pipelineChart" height="140"></canvas></div>
-      <div class="card"><div class="card-title">Won vs Lost</div>
-        <div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">
-          <div style="padding:14px;background:var(--green-bg);border-radius:var(--radius);border:1px solid rgba(16,185,129,0.2)">
-            <div style="font-size:10px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Closed Won</div>
-            <div style="font-size:22px;font-weight:700;color:var(--green)" id="kpi-won">$0</div>
-            <div style="font-size:11px;color:var(--green);opacity:.7" id="kpi-won-count">0 deals</div>
-          </div>
-          <div style="padding:14px;background:var(--red-bg);border-radius:var(--radius);border:1px solid rgba(239,68,68,0.2)">
-            <div style="font-size:10px;font-weight:600;color:var(--red-text);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Closed Lost</div>
-            <div style="font-size:22px;font-weight:700;color:var(--red-text)" id="kpi-lost">$0</div>
-            <div style="font-size:11px;color:var(--red-text);opacity:.7" id="kpi-lost-count">0 deals</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Recent Activities <span>last 5</span>
-        <button class="btn btn-secondary btn-sm" onclick="navigateTo('activities')"><i class="fa-solid fa-arrow-right"></i> View All</button>
-      </div>
-      <div id="recent-activities"><div class="empty-state"><i class="fa-solid fa-clock-rotate-left"></i><h3>No activities yet</h3><p>Load sample data to get started.</p></div></div>
-    </div>`;
-}
+/* DASHBOARD PAGE — see js/dashboard-enhanced.js */
 
-function renderDashboardCharts() {
-  const leads = getLeads();
-  const activities = getActivities();
-  const active = leads.filter(l => l.stage !== 'Closed Lost');
-  const won  = leads.filter(l => l.stage === 'Closed Won');
-  const lost = leads.filter(l => l.stage === 'Closed Lost');
-  const pipeline = active.reduce((s,l)=>s+(l.dealSize||0),0);
-  const forecast = active.reduce((s,l)=>s+(l.dealSize||0)*(l.probability||0)/100,0);
-  const winRate  = leads.length ? Math.round(won.length/leads.length*100) : 0;
-  const inPipeline = leads.filter(l=>!['Closed Won','Closed Lost'].includes(l.stage));
-  const set = (id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
-  set('kpi-pipeline',     formatCurrency(pipeline));
-  set('kpi-pipeline-sub', active.length + ' active deals');
-  set('kpi-forecast',     formatCurrency(Math.round(forecast)));
-  set('kpi-winrate',      winRate + '%');
-  set('kpi-winrate-sub',  won.length + ' won deals');
-  set('kpi-active',       inPipeline.length);
-  set('kpi-won',          formatCurrency(won.reduce((s,l)=>s+(l.dealSize||0),0)));
-  set('kpi-won-count',    won.length + ' deals');
-  set('kpi-lost',         formatCurrency(lost.reduce((s,l)=>s+(l.dealSize||0),0)));
-  set('kpi-lost-count',   lost.length + ' deals');
-  const greet = document.getElementById('dash-greeting');
-  if (greet) greet.textContent = 'Welcome back, ' + CURRENT_USER.name.split(' ')[0] + '! Here\'s your pipeline overview.';
-
-  // Pipeline chart
-  const stages = ['Prospecting','Qualification','Proposal','Negotiation','Closed Won'];
-  const counts = stages.map(s=>leads.filter(l=>l.stage===s).length);
-  const canvas = document.getElementById('pipelineChart');
-  if (canvas) {
-    if (window._pChart) { window._pChart.destroy(); }
-    window._pChart = new Chart(canvas, {
-      type: 'bar',
-      data: { labels: stages, datasets: [{ data: counts, backgroundColor: stages.map(s=>getStageColor(s)), borderRadius: 6, borderSkipped: false }] },
-      options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { font: { size: 11 } } }, y: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { stepSize: 1, font: { size: 11 } } } } }
-    });
-  }
-
-  // Recent activities
-  const container = document.getElementById('recent-activities');
-  if (!container || !activities.length) return;
-  const last5 = [...activities].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,5);
-  const pillStyles = {
-    Call:    { bg: '#f0fdf4', border: '#bbf7d0', iconColor: '#16a34a', textColor: '#15803d', icon: 'fa-phone' },
-    Email:   { bg: '#eff6ff', border: '#bfdbfe', iconColor: '#2563eb', textColor: '#1d4ed8', icon: 'fa-envelope' },
-    Meeting: { bg: '#f0fdf4', border: '#bbf7d0', iconColor: '#16a34a', textColor: '#15803d', icon: 'fa-calendar-check' },
-    Note:    { bg: '#f8fafc', border: '#e2e8f0', iconColor: '#64748b', textColor: '#475569', icon: 'fa-note-sticky' },
-  };
-  container.innerHTML = last5.map(a => {
-    const pill = pillStyles[a.type] || pillStyles.Note;
-    return `
-    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light);cursor:pointer" onclick="openActivityDrawer('${a.id}')">
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
-          <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;background:${pill.bg};border:1px solid ${pill.border};color:${pill.textColor}">
-            <i class="fa-solid ${pill.icon}" style="font-size:10px;color:${pill.iconColor}"></i> ${a.type}
-          </span>
-          <span style="font-size:12px;font-weight:600;color:var(--text-primary)">${a.leadName}</span>
-          <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${timeAgo(a.createdAt)}</span>
-        </div>
-        <div style="font-size:12px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.notes||''}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-/* ======================================================
-   LEADS PAGE
-====================================================== */
-function getLeadsHTML() {
-  return `
-    <div class="page-header">
-      <div><div class="page-title">Lead Management</div><div class="page-subtitle">Track and manage your sales leads</div></div>
-      <button class="btn btn-primary" onclick="openAddLeadModal()"><i class="fa-solid fa-plus"></i> Add Lead</button>
-    </div>
-    <div class="card" style="margin-bottom:16px;padding:14px 18px">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <input class="form-input" style="max-width:240px" placeholder="🔍 Search leads..." id="lead-search" oninput="filterLeads()">
-        <select class="form-input" style="width:160px" id="lead-stage-filter" onchange="filterLeads()">
-          <option value="">All Stages</option>
-          <option>Prospecting</option><option>Qualification</option><option>Proposal</option><option>Negotiation</option><option>Closed Won</option><option>Closed Lost</option>
-        </select>
-        <select class="form-input" style="width:140px" id="lead-source-filter" onchange="filterLeads()">
-          <option value="">All Sources</option>
-          <option>Website</option><option>Referral</option><option>Event</option><option>Cold Call</option>
-        </select>
-      </div>
-    </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="overflow-x:auto">
-        <table class="data-table" id="leads-table">
-          <thead><tr>
-            <th>Name / Company</th><th>Stage</th><th>Deal Size</th><th>Source</th><th>Probability</th><th>Updated</th><th>Actions</th>
-          </tr></thead>
-          <tbody id="leads-tbody"></tbody>
-        </table>
-      </div>
-    </div>`;
-}
-function renderLeadsTable(filter) {
-  let leads = getLeads();
-  const search = document.getElementById('lead-search')?.value?.toLowerCase() || '';
-  const stageF = document.getElementById('lead-stage-filter')?.value || '';
-  const sourceF = document.getElementById('lead-source-filter')?.value || '';
-  if (search)  leads = leads.filter(l => (l.name+l.company+l.email).toLowerCase().includes(search));
-  if (stageF)  leads = leads.filter(l => l.stage === stageF);
-  if (sourceF) leads = leads.filter(l => l.source === sourceF);
-  const tbody = document.getElementById('leads-tbody');
-  if (!tbody) return;
-  if (!leads.length) { tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><i class="fa-solid fa-user-plus"></i><h3>No leads found</h3><p>Add your first lead or load sample data.</p></div></td></tr>`; return; }
-  tbody.innerHTML = leads.map(l => `
-    <tr onclick="openLeadDrawer('${l.id}')">
-      <td><div style="font-weight:600">${l.name}</div><div style="font-size:11px;color:var(--text-muted)">${l.company}</div></td>
-      <td><span class="badge ${getStageBadgeClass(l.stage)}">${l.stage}</span></td>
-      <td style="font-weight:600">${formatCurrency(l.dealSize)}</td>
-      <td><span style="font-size:12px;color:var(--text-secondary)">${l.source}</span></td>
-      <td>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-            <div style="height:100%;width:${l.probability}%;background:${l.probability>=75?'var(--green)':l.probability>=50?'var(--amber)':'var(--blue)'};border-radius:3px"></div>
-          </div>
-          <span style="font-size:12px;font-weight:600;width:30px">${l.probability}%</span>
-        </div>
-      </td>
-      <td style="font-size:12px;color:var(--text-muted)">${timeAgo(l.updatedAt)}</td>
-      <td onclick="event.stopPropagation()">
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-icon btn-secondary" title="View" onclick="openLeadDrawer('${l.id}')"><i class="fa-solid fa-eye"></i></button>
-          <button class="btn btn-icon btn-secondary" title="Log Activity" onclick="openLogActivity('${l.id}','${l.name}','${l.stage}')"><i class="fa-solid fa-plus"></i></button>
-        </div>
-      </td>
-    </tr>`).join('');
-}
-function filterLeads() { renderLeadsTable(); }
-function openLeadDrawer(id) {
-  const lead = getLeads().find(l=>l.id===id);
-  if (!lead) return;
-  const activities = getActivities().filter(a=>a.leadId===id).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-  document.getElementById('drawer-badge').className = 'badge ' + getStageBadgeClass(lead.stage);
-  document.getElementById('drawer-badge').textContent = lead.stage;
-  document.getElementById('drawer-name').textContent = lead.name;
-  document.getElementById('drawer-company').textContent = lead.company;
-  document.getElementById('drawer-body').innerHTML = `
-    <div style="display:grid;gap:10px;margin-bottom:20px">
-      <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:var(--text-muted)">Deal Size</span><span style="font-weight:700;color:var(--accent)">${formatCurrency(lead.dealSize)}</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:var(--text-muted)">Probability</span><span style="font-weight:600">${lead.probability}%</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:var(--text-muted)">Source</span><span style="font-size:12px">${lead.source}</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:var(--text-muted)">Email</span><span style="font-size:12px">${lead.email}</span></div>
-      <div style="display:flex;justify-content:space-between"><span style="font-size:12px;color:var(--text-muted)">Phone</span><span style="font-size:12px">${lead.phone}</span></div>
-    </div>
-    ${lead.notes ? `<div style="background:var(--bg-input);border-radius:var(--radius);padding:12px;margin-bottom:20px;font-size:12px;color:var(--text-secondary);line-height:1.5">${lead.notes}</div>` : ''}
-    <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em">Activity History (${activities.length})</div>
-    ${activities.length ? `<div class="timeline">${activities.map(a=>`
-      <div class="timeline-item">
-        <div class="timeline-dot" style="background:${getTypeColor(a.type)}"><i class="fa-solid ${getTypeIcon(a.type)}" style="font-size:7px"></i></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
-          <div class="timeline-type">${a.type}</div>
-          <div class="timeline-date">${formatDate(a.date)}</div>
-        </div>
-        <div class="timeline-note">${a.notes||''}</div>
-        ${a.nextAction ? `<div style="font-size:11px;color:var(--accent);margin-top:4px">→ ${a.nextAction}</div>` : ''}
-      </div>`).join('')}</div>` : '<div class="empty-state" style="padding:24px 0"><i class="fa-solid fa-clock" style="font-size:24px"></i><p style="margin-top:8px">No activities logged yet</p></div>'}`;
-  document.getElementById('drawer-footer').innerHTML = `
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-primary" style="flex:1" onclick="openLogActivity('${lead.id}','${lead.name}','${lead.stage}')"><i class="fa-solid fa-plus"></i> Log Activity</button>
-      <button class="btn btn-secondary" onclick="closeDrawer()">Close</button>
-    </div>`;
-  openDrawer();
-}
-function openAddLeadModal() { showToast('Add Lead form coming soon! Load sample data to see leads.', 'info'); }
+/* LEADS PAGE — see js/leads-management.js */
 
 /* ======================================================
    DEALS PAGE
@@ -1727,206 +1703,7 @@ document.addEventListener('click', function (e) {
 });
 
 
-/* ======================================================
-   ACTIVITY LOG PAGE (NEW)
-====================================================== */
-function getActivitiesHTML() {
-  return `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Activity Log</div>
-        <div class="page-subtitle">Track all calls, emails, meetings and notes</div>
-      </div>
-      <button class="btn btn-primary" onclick="openAddActivityModal()"><i class="fa-solid fa-plus"></i> Log Activity</button>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px" id="act-kpis"></div>
-    <div class="card" style="margin-bottom:16px;padding:14px 18px">
-      <div class="filter-bar">
-        <input class="form-input" style="max-width:220px" placeholder="🔍 Search activities..." id="act-search" oninput="filterActivities()">
-        <div class="filter-chip active" id="chip-all" onclick="setActFilter('all')">All</div>
-        <div class="filter-chip" id="chip-Call" onclick="setActFilter('Call')"><i class="fa-solid fa-phone" style="color:var(--green)"></i> Calls</div>
-        <div class="filter-chip" id="chip-Email" onclick="setActFilter('Email')"><i class="fa-solid fa-envelope" style="color:var(--blue)"></i> Emails</div>
-        <div class="filter-chip" id="chip-Meeting" onclick="setActFilter('Meeting')"><i class="fa-solid fa-handshake" style="color:var(--purple)"></i> Meetings</div>
-        <div class="filter-chip" id="chip-Note" onclick="setActFilter('Note')"><i class="fa-solid fa-note-sticky" style="color:var(--text-muted)"></i> Notes</div>
-        <select class="form-input" style="width:160px;margin-left:auto" id="act-sort" onchange="filterActivities()">
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="lead">By lead</option>
-        </select>
-      </div>
-    </div>
-    <div id="activities-list"></div>`;
-}
-
-let _actTypeFilter = 'all';
-function setActFilter(type) {
-  _actTypeFilter = type;
-  ['all','Call','Email','Meeting','Note'].forEach(t => {
-    const chip = document.getElementById('chip-' + t);
-    if (chip) chip.classList.toggle('active', t === type);
-  });
-  filterActivities();
-}
-function filterActivities() {
-  const search = document.getElementById('act-search')?.value?.toLowerCase() || '';
-  const sort = document.getElementById('act-sort')?.value || 'newest';
-  let activities = getActivities();
-  // Members only see activities linked to their own leads
-  if (CURRENT_USER.role !== 'manager') {
-    const myLeadIds = new Set(getLeads().filter(l => (l.assignedTo || '') === CURRENT_USER.name).map(l => l.id));
-    activities = activities.filter(a => myLeadIds.has(a.leadId));
-  }
-  if (_actTypeFilter !== 'all') activities = activities.filter(a => a.type === _actTypeFilter);
-  if (search) activities = activities.filter(a => (a.leadName+a.company+a.notes+a.type).toLowerCase().includes(search));
-  if (sort === 'newest') activities.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-  else if (sort === 'oldest') activities.sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
-  else if (sort === 'lead') activities.sort((a,b)=>a.leadName.localeCompare(b.leadName));
-  renderActivitiesList(activities);
-}
-
-function renderActivitiesPage() {
-  // Reset type filter chip UI to 'all' whenever the page re-renders from scratch
-  if (document.getElementById('chip-all')) {
-    _actTypeFilter = 'all';
-    ['all','Call','Email','Meeting','Note'].forEach(t => {
-      const chip = document.getElementById('chip-' + t);
-      if (chip) chip.classList.toggle('active', t === 'all');
-    });
-  }
-  const allActivities = getActivities();
-  // Members only see activities linked to their own leads
-  const myLeadIds = CURRENT_USER.role !== 'manager'
-    ? new Set(getLeads().filter(l => (l.assignedTo || '') === CURRENT_USER.name).map(l => l.id))
-    : null;
-  const activities = myLeadIds ? allActivities.filter(a => myLeadIds.has(a.leadId)) : allActivities;
-  // KPIs
-  const kpiEl = document.getElementById('act-kpis');
-  if (kpiEl) {
-    const calls = activities.filter(a=>a.type==='Call').length;
-    const emails = activities.filter(a=>a.type==='Email').length;
-    const meetings = activities.filter(a=>a.type==='Meeting').length;
-    const notes = activities.filter(a=>a.type==='Note').length;
-    const totalMins = activities.filter(a=>a.duration>0).reduce((s,a)=>s+(a.duration||0),0);
-    kpiEl.innerHTML = `
-      <div class="metric-card" style="border-left-color:var(--green)"><div class="metric-label">📞 Calls</div><div class="metric-value" style="color:var(--green)">${calls}</div><div class="metric-sub">total logged</div></div>
-      <div class="metric-card" style="border-left-color:var(--blue)"><div class="metric-label">📧 Emails</div><div class="metric-value" style="color:var(--blue)">${emails}</div><div class="metric-sub">total sent</div></div>
-      <div class="metric-card" style="border-left-color:var(--purple)"><div class="metric-label">🤝 Meetings</div><div class="metric-value" style="color:var(--purple)">${meetings}</div><div class="metric-sub">total held</div></div>
-      <div class="metric-card" style="border-left-color:var(--amber)"><div class="metric-label">⏱ Time Logged</div><div class="metric-value" style="color:var(--amber)">${Math.round(totalMins/60*10)/10}h</div><div class="metric-sub">${totalMins} minutes total</div></div>`;
-  }
-  filterActivities();
-}
-
-function renderActivitiesList(activities) {
-  const container = document.getElementById('activities-list');
-  if (!container) return;
-  if (!activities.length) {
-    container.innerHTML = `<div class="card"><div class="empty-state"><i class="fa-solid fa-clock-rotate-left"></i><h3>No activities found</h3><p>Adjust filters or log your first activity.</p></div></div>`;
-    return;
-  }
-  // Group by date
-  const groups = {};
-  activities.forEach(a => {
-    const d = new Date(a.date).toDateString();
-    if (!groups[d]) groups[d] = [];
-    groups[d].push(a);
-  });
-
-  function getTypePillStyle(t) {
-    const styles = {
-      Call:    { bg: '#f0fdf4', border: '#bbf7d0', iconColor: '#16a34a', textColor: '#15803d', icon: 'fa-phone' },
-      Email:   { bg: '#eff6ff', border: '#bfdbfe', iconColor: '#2563eb', textColor: '#1d4ed8', icon: 'fa-envelope' },
-      Meeting: { bg: '#f0fdf4', border: '#bbf7d0', iconColor: '#16a34a', textColor: '#15803d', icon: 'fa-calendar-check' },
-      Note:    { bg: '#f8fafc', border: '#e2e8f0', iconColor: '#64748b', textColor: '#475569', icon: 'fa-note-sticky' },
-    };
-    return styles[t] || styles.Note;
-  }
-
-  container.innerHTML = Object.entries(groups).map(([date, acts]) => `
-    <div style="margin-bottom:16px">
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:8px">
-        <div style="flex:1;height:1px;background:var(--border)"></div>
-        <span>${formatDate(new Date(date).toISOString())}</span>
-        <div style="flex:1;height:1px;background:var(--border)"></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        ${acts.map(a => {
-          const pill = getTypePillStyle(a.type);
-          return `
-          <div class="activity-card" onclick="openActivityDrawer('${a.id}')">
-            <div style="display:flex;align-items:flex-start;gap:12px">
-              <div style="flex:1;min-width:0">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-                  <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:${pill.bg};border:1px solid ${pill.border};color:${pill.textColor}">
-                    <i class="fa-solid ${pill.icon}" style="font-size:11px;color:${pill.iconColor}"></i> ${a.type}
-                  </span>
-                  <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${a.leadName}</span>
-                  <span style="font-size:11px;color:var(--text-muted)">${a.company}</span>
-                  <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${timeAgo(a.createdAt)}</span>
-                </div>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:6px">${a.notes||''}</div>
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-                  ${a.duration>0 ? `<span style="font-size:11px;color:var(--text-muted)"><i class="fa-regular fa-clock"></i> ${a.duration} min</span>` : ''}
-                  ${a.nextAction ? `<span style="font-size:11px;color:var(--accent);background:var(--accent-light);padding:2px 8px;border-radius:4px"><i class="fa-solid fa-arrow-right"></i> ${a.nextAction}</span>` : ''}
-                  <div style="margin-left:auto;display:flex;gap:6px" onclick="event.stopPropagation()">
-                    <button class="btn btn-icon btn-secondary" title="Edit" onclick="openEditActivityModal('${a.id}')"><i class="fa-solid fa-pen" style="font-size:11px"></i></button>
-                    <button class="btn btn-icon btn-danger" title="Delete" onclick="if(confirm('Delete this activity?')){const acts=getActivities().filter(x=>x.id!=='${a.id}');saveActivities(acts);showToast('Activity deleted','info');renderActivitiesPage();}"><i class="fa-solid fa-trash" style="font-size:11px"></i></button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>`).join('');
-}
-
-function openActivityDrawer(id) {
-  const acts = getActivities();
-  const a = acts.find(x=>x.id===id);
-  if (!a) return;
-  document.getElementById('drawer-badge').className = 'badge ' + getTypeBadgeClass(a.type);
-  document.getElementById('drawer-badge').textContent = a.type;
-  document.getElementById('drawer-name').textContent = a.leadName;
-  document.getElementById('drawer-company').textContent = a.company;
-  document.getElementById('drawer-body').innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:14px;background:${getTypeBg(a.type)};border-radius:var(--radius-md)">
-      <div style="width:44px;height:44px;border-radius:50%;background:${getTypeColor(a.type)};display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0">
-        <i class="fa-solid ${getTypeIcon(a.type)}"></i>
-      </div>
-      <div>
-        <div style="font-size:14px;font-weight:700;color:var(--text-primary)">${a.type} with ${a.leadName}</div>
-        <div style="font-size:12px;color:var(--text-secondary)">${formatDateTime(a.date)} ${a.duration>0?'· '+a.duration+' min':''}</div>
-      </div>
-    </div>
-    <div style="display:grid;gap:10px;margin-bottom:20px">
-      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><span style="font-size:12px;color:var(--text-muted)">Lead</span><span style="font-size:12px;font-weight:600">${a.leadName}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><span style="font-size:12px;color:var(--text-muted)">Company</span><span style="font-size:12px">${a.company}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><span style="font-size:12px;color:var(--text-muted)">Stage</span><span class="badge ${getStageBadgeClass(a.stage||'')}">${a.stage||'—'}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><span style="font-size:12px;color:var(--text-muted)">Date</span><span style="font-size:12px">${formatDate(a.date)}</span></div>
-      ${a.duration>0?`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><span style="font-size:12px;color:var(--text-muted)">Duration</span><span style="font-size:12px">${a.duration} minutes</span></div>`:''}
-    </div>
-    <div style="margin-bottom:16px">
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Notes</div>
-      <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;background:var(--bg-input);padding:12px;border-radius:var(--radius)">${a.notes||'No notes recorded.'}</div>
-    </div>
-    ${a.nextAction?`<div style="padding:12px;background:var(--accent-light);border-radius:var(--radius);border-left:3px solid var(--accent)"><div style="font-size:11px;font-weight:700;color:var(--accent-text);margin-bottom:4px">NEXT ACTION</div><div style="font-size:13px;color:var(--accent-text)">${a.nextAction}</div></div>`:''}`;
-  document.getElementById('drawer-footer').innerHTML = `
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary" style="flex:1" onclick="navigateTo('leads')"><i class="fa-solid fa-user"></i> View Lead</button>
-      <button class="btn btn-secondary btn-sm" title="Edit" onclick="openEditActivityModal('${a.id}')"><i class="fa-solid fa-pen"></i></button>
-      <button class="btn btn-danger btn-sm" onclick="deleteActivity('${a.id}')"><i class="fa-solid fa-trash"></i></button>
-    </div>`;
-  openDrawer();
-}
-function deleteActivity(id) {
-  if (!confirm('Delete this activity?')) return;
-  const acts = getActivities().filter(a=>a.id!==id);
-  saveActivities(acts);
-  closeDrawer();
-  showToast('Activity deleted','info');
-  if (currentPage === 'activities') renderActivitiesPage();
-  if (currentPage === 'dashboard') renderDashboardCharts();
-}
+/* ACTIVITY LOG PAGE — see js/activity-log.js */
 
 function openEditActivityModal(id) {
   const acts = getActivities();
@@ -1947,201 +1724,56 @@ function saveEditActivity() {
   const idx = acts.findIndex(a => a.id === id);
   if (idx === -1) return;
   acts[idx].type = document.getElementById('edit-act-type').value;
-  acts[idx].date = document.getElementById('edit-act-date').value || acts[idx].date;
-  acts[idx].duration = parseInt(document.getElementById('edit-act-duration').value) || 0;
+  acts[idx].date = document.getElementById('edit-act-date').value ? new Date(document.getElementById('edit-act-date').value + 'T00:00:00').toISOString() : acts[idx].date;
+  acts[idx].duration = parseInt(document.getElementById('edit-act-duration').value, 10) || 0;
   acts[idx].notes = document.getElementById('edit-act-notes').value.trim();
   acts[idx].nextAction = document.getElementById('edit-act-next').value.trim();
   saveActivities(acts);
   closeModal('edit-activity-modal');
-  showToast('Activity updated successfully', 'success');
-  if (currentPage === 'activities') renderActivitiesPage();
-  else if (currentPage === 'dashboard') renderDashboardCharts();
-  else openActivityDrawer(id); // Refresh drawer only when viewing from drawer context
+  if (currentPage === 'activities' && typeof renderActivitiesPage === 'function') renderActivitiesPage();
+  else if (currentPage === 'dashboard' && typeof renderDashboardCharts === 'function') renderDashboardCharts();
+  else if (typeof openActivityDrawer === 'function') openActivityDrawer(id);
 }
 
-/* Add Activity Modal */
-function openAddActivityModal() {
-  // Populate lead select — members only see their own leads
-  const allLeads = getLeads();
-  const leads = CURRENT_USER.role === 'manager'
-    ? allLeads
-    : allLeads.filter(l => (l.assignedTo || '') === CURRENT_USER.name);
-  const sel = document.getElementById('new-act-lead');
-  if (sel) {
-    sel.innerHTML = '<option value="">Select a lead...</option>' + leads.map(l=>`<option value="${l.id}" data-name="${l.name}" data-company="${l.company}" data-stage="${l.stage}">${l.name} — ${l.company}</option>`).join('');
-  }
-  const dateInput = document.getElementById('new-act-date');
-  if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
-  openModal('add-activity-modal');
-}
-function openLogActivity(leadId, leadName, stage) {
-  openAddActivityModal();
-  const sel = document.getElementById('new-act-lead');
-  if (sel) sel.value = leadId;
-  closeDrawer();
-}
-function saveActivity() {
-  const type     = document.getElementById('new-act-type')?.value;
-  const leadEl   = document.getElementById('new-act-lead');
-  const leadId   = leadEl?.value;
-  const notes    = document.getElementById('new-act-notes')?.value?.trim();
-  const nextAct  = document.getElementById('new-act-next')?.value?.trim();
-  const dateRaw  = document.getElementById('new-act-date')?.value;       // "YYYY-MM-DD" or ""
-  const duration = parseInt(document.getElementById('new-act-duration')?.value)||0;
-  if (!leadId) { showToast('Please select a lead', 'error'); return; }
-  if (!notes)  { showToast('Please enter notes', 'error'); return; }
-
-  // Always store a full ISO timestamp so date-sorting never breaks
-  const dateISO = dateRaw ? new Date(dateRaw + 'T00:00:00').toISOString() : new Date().toISOString();
-  const now     = new Date().toISOString();
-
-  const opt = leadEl.options[leadEl.selectedIndex];
-  const leads   = getLeads();
-  const leadIdx = leads.findIndex(l => l.id === leadId);
-  const lead    = leadIdx !== -1 ? leads[leadIdx] : null;
-
-  const newAct = {
-    id: 'act_' + Date.now(),
-    type,
-    leadId,
-    leadName:   opt.dataset.name    || lead?.name    || '',
-    company:    opt.dataset.company || lead?.company || '',
-    stage:      opt.dataset.stage   || lead?.stage   || '',
-    date:       dateISO,
-    duration,
-    notes,
-    nextAction: nextAct || '',
-    createdAt:  now          // <-- used by latestActivityType sort
-  };
-
-  const acts = getActivities();
-  acts.push(newAct);
-  saveActivities(acts);
-
-  // Stamp the lead's updatedAt so Last Updated column also refreshes
-  if (leadIdx !== -1) {
-    leads[leadIdx].updatedAt = now;
-    saveLeads(leads);
-  }
-
-  closeModal('add-activity-modal');
-  showToast(type + ' logged successfully', 'success');
-
-  // Always refresh deals table (covers: on deals page with or without drawer open)
-  if (currentPage === 'deals')      renderDealsTable();
-  if (currentPage === 'activities') renderActivitiesPage();
-  if (currentPage === 'dashboard')  renderDashboardCharts();
-
-  // If drawer is open, refresh it so activity history is live
-  const drawer = document.getElementById('detail-drawer');
-  if (drawer && drawer.classList.contains('open')) {
-    openLeadDrawer(leadId);
-  }
-}
-
-/* ======================================================
-   REPORTS PAGE
-====================================================== */
-function getReportsHTML() {
-  return `
-    <div class="page-header">
-      <div><div class="page-title">Reports & Analytics</div><div class="page-subtitle">Pipeline performance and team insights</div></div>
-      <button class="btn btn-secondary" onclick="exportData()"><i class="fa-solid fa-download"></i> Export Data</button>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px" id="report-kpis"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-      <div class="card"><div class="card-title">Pipeline by Stage <span>deal value</span></div><canvas id="reportStageChart" height="180"></canvas></div>
-      <div class="card"><div class="card-title">Activity Breakdown <span>by type</span></div><canvas id="reportActChart" height="180"></canvas></div>
-    </div>
-    <div class="card manager-only">
-      <div class="card-title">Lead Source Performance</div>
-      <div id="source-table"></div>
-    </div>`;
-}
-function renderReportsCharts() {
-  const leads = getLeads();
-  const acts  = getActivities();
-  const won  = leads.filter(l=>l.stage==='Closed Won');
-  const lost = leads.filter(l=>l.stage==='Closed Lost');
-  const active = leads.filter(l=>!['Closed Won','Closed Lost'].includes(l.stage));
-  const pipeline = active.reduce((s,l)=>s+(l.dealSize||0),0);
-  const forecast = active.reduce((s,l)=>s+(l.dealSize||0)*(l.probability||0)/100,0);
-  const winRate  = leads.length ? Math.round(won.length/leads.length*100) : 0;
-  const kpiEl = document.getElementById('report-kpis');
-  if (kpiEl) kpiEl.innerHTML = `
-    <div class="metric-card" style="border-left-color:var(--accent)"><div class="metric-label">Total Pipeline</div><div class="metric-value" style="color:var(--accent)">${formatCurrency(pipeline)}</div><div class="metric-sub">${active.length} active deals</div></div>
-    <div class="metric-card" style="border-left-color:var(--green)"><div class="metric-label">Win Rate</div><div class="metric-value" style="color:var(--green)">${winRate}%</div><div class="metric-sub">${won.length} won / ${leads.length} total</div></div>
-    <div class="metric-card" style="border-left-color:var(--amber)"><div class="metric-label">Weighted Forecast</div><div class="metric-value" style="color:var(--amber)">${formatCurrency(Math.round(forecast))}</div><div class="metric-sub">probability-adjusted</div></div>`;
-
-  // Stage chart
-  const stages = ['Prospecting','Qualification','Proposal','Negotiation','Closed Won','Closed Lost'];
-  const stageValues = stages.map(s=>leads.filter(l=>l.stage===s).reduce((sum,l)=>sum+(l.dealSize||0),0));
-  const c1 = document.getElementById('reportStageChart');
-  if (c1) {
-    if (window._r1) window._r1.destroy();
-    window._r1 = new Chart(c1, {
-      type: 'bar',
-      data: { labels: stages, datasets: [{ data: stageValues, backgroundColor: stages.map(s=>getStageColor(s)), borderRadius: 6, borderSkipped: false }] },
-      options: { responsive:true, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{callback:v=>'$'+Math.round(v/1000)+'k',font:{size:10}}}} }
-    });
-  }
-  // Activity chart
-  const actTypes = ['Call','Email','Meeting','Note'];
-  const actCounts = actTypes.map(t=>acts.filter(a=>a.type===t).length);
-  const c2 = document.getElementById('reportActChart');
-  if (c2) {
-    if (window._r2) window._r2.destroy();
-    window._r2 = new Chart(c2, {
-      type: 'doughnut',
-      data: { labels: actTypes, datasets: [{ data: actCounts, backgroundColor: ['var(--green)','var(--blue)','var(--purple)','#94a3b8'], borderWidth: 0, hoverOffset: 6 }] },
-      options: { responsive:true, plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:14}}} }
-    });
-  }
-  // Source table
-  const sourceEl = document.getElementById('source-table');
-  if (sourceEl) {
-    const sources = [...new Set(leads.map(l=>l.source))];
-    sourceEl.innerHTML = `<table class="data-table"><thead><tr><th>Source</th><th>Leads</th><th>Pipeline Value</th><th>Won</th><th>Win Rate</th></tr></thead><tbody>
-      ${sources.map(s => {
-        const sl = leads.filter(l=>l.source===s);
-        const sw = sl.filter(l=>l.stage==='Closed Won');
-        const val = sl.reduce((sum,l)=>sum+(l.dealSize||0),0);
-        return `<tr><td style="font-weight:600">${s}</td><td>${sl.length}</td><td>${formatCurrency(val)}</td><td>${sw.length}</td><td>${sl.length?Math.round(sw.length/sl.length*100):0}%</td></tr>`;
-      }).join('')}
-    </tbody></table>`;
-  }
-}
 
 /* ── SAMPLE DATA ── */
 function loadSampleData() {
   const leads = [
-    { id:'lead_1', name:'Nguyễn Thị Linh',  company:'TechCorp Vietnam',    email:'linh@techcorp.vn',  phone:'0901234567', dealSize:32000, source:'Website',   stage:'Proposal',      probability:50,  assignedTo:'Duy Trần', notes:'Interested in enterprise package', createdAt:'2026-03-15T08:00:00Z', updatedAt:'2026-05-20T10:00:00Z' },
-    { id:'lead_2', name:'Trần Minh Đức',    company:'ABC Manufacturing',   email:'duc@abcmfg.vn',     phone:'0912345678', dealSize:45000, source:'Referral',  stage:'Negotiation',   probability:75,  assignedTo:'Mai Lê', notes:'Budget approved, finalizing terms', createdAt:'2026-02-10T09:00:00Z', updatedAt:'2026-05-25T14:00:00Z' },
-    { id:'lead_3', name:'Phạm Thị Hoa',     company:'XYZ Retail Group',    email:'hoa@xyz.vn',        phone:'0923456789', dealSize:18500, source:'Event',     stage:'Qualification', probability:25,  assignedTo:'Hùng Võ', notes:'Met at Vietnam Tech Summit', createdAt:'2026-04-01T10:00:00Z', updatedAt:'2026-05-10T09:00:00Z' },
-    { id:'lead_4', name:'Lê Văn Nam',        company:'StartupVN',           email:'nam@startupvn.vn',  phone:'0934567890', dealSize:78000, source:'Cold Call', stage:'Prospecting',   probability:10,  assignedTo:'Duy Trần', notes:'CEO, very busy schedule', createdAt:'2026-05-01T11:00:00Z', updatedAt:'2026-05-01T11:00:00Z' },
-    { id:'lead_5', name:'Võ Thị Mai',        company:'Global Logistics Co', email:'mai@global.vn',     phone:'0945678901', dealSize:55000, source:'Website',   stage:'Closed Won',    probability:100, assignedTo:'Anna Nguyen', notes:'Contract signed April 2026', createdAt:'2026-01-15T08:00:00Z', updatedAt:'2026-04-30T16:00:00Z' },
-    { id:'lead_6', name:'Đặng Quốc Hùng',   company:'Saigon Food JSC',     email:'hung@saigon.vn',    phone:'0956789012', dealSize:28000, source:'Referral',  stage:'Closed Won',    probability:100, assignedTo:'Mai Lê', notes:'Upsell opportunity Q3', createdAt:'2026-02-20T09:00:00Z', updatedAt:'2026-05-15T11:00:00Z' },
-    { id:'lead_7', name:'Bùi Thị Lan',       company:'MedTech Solutions',   email:'lan@medtech.vn',    phone:'0967890123', dealSize:92000, source:'Event',     stage:'Proposal',      probability:50,  assignedTo:'Hùng Võ', notes:'Needs board approval', createdAt:'2026-04-10T10:00:00Z', updatedAt:'2026-05-28T13:00:00Z' },
-    { id:'lead_8', name:'Hoàng Văn Tùng',    company:'EduSmart Vietnam',    email:'tung@edusmart.vn',  phone:'0978901234', dealSize:15000, source:'Website',   stage:'Closed Lost',   probability:0,   assignedTo:'Duy Trần', notes:'Chose competitor on price', createdAt:'2026-03-05T08:00:00Z', updatedAt:'2026-04-20T10:00:00Z' }
+    { id:'lead_1', name:'Nguyễn Thị Linh',  company:'TechCorp Vietnam',    email:'linh@techcorp.vn',     phone:'0901234567', dealSize:32000, source:'Website',   stage:'Proposal',      probability:50,  notes:'Khách hàng đang so sánh với 2 đối thủ. Cần gửi bản so sánh tính năng trước thứ 6.', city:'Hanoi',   industry:'Technology', website:'techcorp.vn',    assignedTo:'Duy Trần',  ownerId:1, leadStatus:'New',       createdAt:'2026-03-15T08:00:00Z', updatedAt:'2026-05-20T10:00:00Z' },
+    { id:'lead_2', name:'Trần Minh Đức',    company:'ABC Manufacturing',   email:'duc@abcmfg.vn',        phone:'0912345678', dealSize:45000, source:'Referral',  stage:'Negotiation',   probability:75,  notes:'Ngân sách đã được duyệt. Đang hoàn thiện điều khoản hợp đồng với bộ phận pháp lý.', city:'HCMC',   industry:'Logistics',  website:'abcmfg.vn',      assignedTo:'Duy Trần',  ownerId:1, leadStatus:'New',       createdAt:'2026-02-10T09:00:00Z', updatedAt:'2026-05-25T14:00:00Z' },
+    { id:'lead_3', name:'Phạm Thị Hoa',     company:'XYZ Retail Group',    email:'hoa@xyz.vn',           phone:'0923456789', dealSize:18500, source:'Event',     stage:'Qualification', probability:25,  notes:'Gặp tại Vietnam Tech Summit. Demo sản phẩm rất tích cực. Cần xin ý kiến CFO.', city:'Danang',    industry:'Retail',     website:'xyzretail.vn',   assignedTo:'Mai Lê',    ownerId:2, leadStatus:'New',       createdAt:'2026-04-01T10:00:00Z', updatedAt:'2026-05-10T09:00:00Z' },
+    { id:'lead_4', name:'Lê Văn Nam',       company:'StartupVN',           email:'nam@startupvn.vn',     phone:'0934567890', dealSize:78000, source:'Cold Call', stage:'Prospecting',   probability:10,  notes:'CEO, lịch rất bận. Hẹn follow-up tháng sau. Quan tâm đến gói enterprise.', city:'Hanoi',        industry:'Technology', website:'startupvn.vn',   assignedTo:'Hùng Võ',   ownerId:3, leadStatus:'Rejected',  createdAt:'2026-05-01T11:00:00Z', updatedAt:'2026-05-01T11:00:00Z' },
+    { id:'lead_5', name:'Võ Thị Mai',       company:'Global Logistics Co', email:'mai@global.vn',        phone:'0945678901', dealSize:55000, source:'Website',   stage:'Closed Won',    probability:100, notes:'Hợp đồng đã ký tháng 4/2026. Cơ hội upsell Q3 cho module vận tải.', city:'HCMC',         industry:'Logistics',  website:'globallogistics.vn', assignedTo:'Duy Trần', ownerId:1, leadStatus:'Converted', createdAt:'2026-01-15T08:00:00Z', updatedAt:'2026-04-30T16:00:00Z' },
+    { id:'lead_6', name:'Đặng Quốc Hùng',  company:'Saigon Food JSC',     email:'hung@saigonfood.vn',   phone:'0956789012', dealSize:28000, source:'Referral',  stage:'Closed Won',    probability:100, notes:'Khách hàng rất hài lòng. Đang chuẩn bị đề xuất upsell cho Q3.', city:'HCMC',           industry:'FMCG',       website:'saigonfood.vn',  assignedTo:'Mai Lê',    ownerId:2, leadStatus:'Converted', createdAt:'2026-02-20T09:00:00Z', updatedAt:'2026-05-15T11:00:00Z' },
+    { id:'lead_7', name:'Bùi Thị Lan',      company:'MedTech Solutions',   email:'lan@medtech.vn',       phone:'0967890123', dealSize:92000, source:'Event',     stage:'Proposal',      probability:50,  notes:'Cần trình hội đồng quản trị. Đã gửi bộ tài liệu 12 trang ROI. Phản hồi tuần tới.', city:'Hanoi', industry:'Healthcare', website:'medtech.vn',     assignedTo:'Hùng Võ',   ownerId:3, leadStatus:'New',       createdAt:'2026-04-10T10:00:00Z', updatedAt:'2026-05-28T13:00:00Z' },
+    { id:'lead_8', name:'Hoàng Văn Tùng',   company:'EduSmart Vietnam',    email:'tung@edusmart.vn',     phone:'0978901234', dealSize:15000, source:'Website',   stage:'Closed Lost',   probability:0,   notes:'Khách đã chọn đối thủ vì giá rẻ hơn 15%. Có thể quay lại Q4 nếu họ không hài lòng.', city:'Danang', industry:'Education',  website:'edusmart.vn',    assignedTo:'Mai Lê',    ownerId:2, leadStatus:'Rejected',  createdAt:'2026-03-05T08:00:00Z', updatedAt:'2026-04-20T10:00:00Z' }
   ];
   const activities = [
-    { id:'act_1',  type:'Call',    leadId:'lead_1', leadName:'Nguyễn Thị Linh', company:'TechCorp Vietnam',  stage:'Proposal',      date:'2026-05-20T10:00:00Z', duration:30, notes:'Discussed enterprise pricing. Client comparing with 2 competitors.',        nextAction:'Send comparison doc by Friday', createdAt:'2026-05-20T10:30:00Z' },
-    { id:'act_2',  type:'Email',   leadId:'lead_2', leadName:'Trần Minh Đức',   company:'ABC Manufacturing', stage:'Negotiation',   date:'2026-05-25T14:00:00Z', duration:0,  notes:'Sent revised proposal with 5% discount. Awaiting response.',               nextAction:'Follow up if no reply by Wed',  createdAt:'2026-05-25T14:15:00Z' },
-    { id:'act_3',  type:'Meeting', leadId:'lead_3', leadName:'Phạm Thị Hoa',    company:'XYZ Retail Group',  stage:'Qualification', date:'2026-05-10T09:00:00Z', duration:60, notes:'Product demo. Very positive. Needs CFO approval.',                          nextAction:'Schedule CFO intro call',       createdAt:'2026-05-10T10:05:00Z' },
-    { id:'act_4',  type:'Call',    leadId:'lead_4', leadName:'Lê Văn Nam',       company:'StartupVN',         stage:'Prospecting',   date:'2026-05-01T11:00:00Z', duration:15, notes:'Brief intro. Interested but busy. Follow up next month.',                   nextAction:'Call again June 15',            createdAt:'2026-05-01T11:20:00Z' },
-    { id:'act_5',  type:'Meeting', leadId:'lead_7', leadName:'Bùi Thị Lan',      company:'MedTech Solutions', stage:'Proposal',      date:'2026-05-28T13:00:00Z', duration:90, notes:'Presented full solution to management. Strong interest from IT.',           nextAction:'Send board deck',               createdAt:'2026-05-28T14:35:00Z' },
-    { id:'act_6',  type:'Email',   leadId:'lead_1', leadName:'Nguyễn Thị Linh', company:'TechCorp Vietnam',  stage:'Proposal',      date:'2026-05-22T09:00:00Z', duration:0,  notes:'Sent comparison document highlighting key advantages.',                     nextAction:'',                              createdAt:'2026-05-22T09:10:00Z' },
-    { id:'act_7',  type:'Note',    leadId:'lead_2', leadName:'Trần Minh Đức',   company:'ABC Manufacturing', stage:'Negotiation',   date:'2026-05-26T16:00:00Z', duration:0,  notes:'Legal reviewing contract. Competitor also submitted proposal.',             nextAction:'Check status Monday',           createdAt:'2026-05-26T16:05:00Z' },
-    { id:'act_8',  type:'Call',    leadId:'lead_5', leadName:'Võ Thị Mai',       company:'Global Logistics',  stage:'Closed Won',    date:'2026-04-28T10:00:00Z', duration:20, notes:'Final confirmation call. All terms agreed.',                                nextAction:'',                              createdAt:'2026-04-28T10:25:00Z' },
-    { id:'act_9',  type:'Email',   leadId:'lead_7', leadName:'Bùi Thị Lan',      company:'MedTech Solutions', stage:'Proposal',      date:'2026-05-30T08:00:00Z', duration:0,  notes:'Sent 12-slide board deck with ROI analysis.',                              nextAction:'Follow up after board meeting', createdAt:'2026-05-30T08:15:00Z' },
-    { id:'act_10', type:'Meeting', leadId:'lead_6', leadName:'Đặng Quốc Hùng',  company:'Saigon Food JSC',   stage:'Closed Won',    date:'2026-05-15T11:00:00Z', duration:45, notes:'Post-sale check-in. Very satisfied. Discussed Q3 upsell.',                  nextAction:'Prepare Q3 upsell proposal',    createdAt:'2026-05-15T11:50:00Z' }
+    { id:'act_1',  type:'Call',    leadId:'lead_1', leadName:'Nguyễn Thị Linh', company:'TechCorp Vietnam',  stage:'Proposal',      date:'2026-05-20T10:00:00Z', duration:30, notes:'Discussed enterprise pricing. Client comparing with 2 competitors.',        nextAction:'Send comparison doc by Friday', ownerId:1, createdAt:'2026-05-20T10:30:00Z' },
+    { id:'act_2',  type:'Email',   leadId:'lead_2', leadName:'Trần Minh Đức',   company:'ABC Manufacturing', stage:'Negotiation',   date:'2026-05-25T14:00:00Z', duration:0,  notes:'Sent revised proposal with 5% discount. Awaiting response.',               nextAction:'Follow up if no reply by Wed',  ownerId:1, createdAt:'2026-05-25T14:15:00Z' },
+    { id:'act_3',  type:'Meeting', leadId:'lead_3', leadName:'Phạm Thị Hoa',    company:'XYZ Retail Group',  stage:'Qualification', date:'2026-05-10T09:00:00Z', duration:60, notes:'Product demo. Very positive. Needs CFO approval.',                          nextAction:'Schedule CFO intro call',       ownerId:2, createdAt:'2026-05-10T10:05:00Z' },
+    { id:'act_4',  type:'Call',    leadId:'lead_4', leadName:'Lê Văn Nam',       company:'StartupVN',         stage:'Prospecting',   date:'2026-05-01T11:00:00Z', duration:15, notes:'Brief intro. Interested but busy. Follow up next month.',                   nextAction:'Call again June 15',            ownerId:3, createdAt:'2026-05-01T11:20:00Z' },
+    { id:'act_5',  type:'Meeting', leadId:'lead_7', leadName:'Bùi Thị Lan',      company:'MedTech Solutions', stage:'Proposal',      date:'2026-05-28T13:00:00Z', duration:90, notes:'Presented full solution to management. Strong interest from IT.',           nextAction:'Send board deck',               ownerId:3, createdAt:'2026-05-28T14:35:00Z' },
+    { id:'act_6',  type:'Email',   leadId:'lead_1', leadName:'Nguyễn Thị Linh', company:'TechCorp Vietnam',  stage:'Proposal',      date:'2026-05-22T09:00:00Z', duration:0,  notes:'Sent comparison document highlighting key advantages.',                     nextAction:'',                              ownerId:1, createdAt:'2026-05-22T09:10:00Z' },
+    { id:'act_7',  type:'Note',    leadId:'lead_2', leadName:'Trần Minh Đức',   company:'ABC Manufacturing', stage:'Negotiation',   date:'2026-05-26T16:00:00Z', duration:0,  notes:'Legal reviewing contract. Competitor also submitted proposal.',             nextAction:'Check status Monday',           ownerId:1, createdAt:'2026-05-26T16:05:00Z' },
+    { id:'act_8',  type:'Call',    leadId:'lead_5', leadName:'Võ Thị Mai',       company:'Global Logistics',  stage:'Closed Won',    date:'2026-04-28T10:00:00Z', duration:20, notes:'Final confirmation call. All terms agreed.',                                nextAction:'',                              ownerId:1, createdAt:'2026-04-28T10:25:00Z' },
+    { id:'act_9',  type:'Email',   leadId:'lead_7', leadName:'Bùi Thị Lan',      company:'MedTech Solutions', stage:'Proposal',      date:'2026-05-30T08:00:00Z', duration:0,  notes:'Sent 12-slide board deck with ROI analysis.',                              nextAction:'Follow up after board meeting', ownerId:3, createdAt:'2026-05-30T08:15:00Z' },
+    { id:'act_10', type:'Meeting', leadId:'lead_6', leadName:'Đặng Quốc Hùng',  company:'Saigon Food JSC',   stage:'Closed Won',    date:'2026-05-15T11:00:00Z', duration:45, notes:'Post-sale check-in. Very satisfied. Discussed Q3 upsell.',                  nextAction:'Prepare Q3 upsell proposal',    ownerId:2, createdAt:'2026-05-15T11:50:00Z' }
   ];
   saveLeads(leads);
   saveActivities(activities);
-  // Update badge
-  const badge = document.getElementById('badge-leads');
-  if (badge) { badge.textContent = leads.filter(l=>l.stage==='Prospecting').length; badge.style.display = 'inline'; }
-  showToast('Sample data loaded — 8 leads & 10 activities', 'success');
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  const dayAfter3 = new Date(); dayAfter3.setDate(dayAfter3.getDate() + 3);
+  const scheduled = [
+    { id:'sched_1', type:'Call', leadId:'lead_1', leadName:'Nguyễn Thị Linh', company:'TechCorp Vietnam', stage:'Proposal', scheduledDate:today, scheduledTime:'10:00', agenda:'Follow up on enterprise pricing comparison doc.', done:false, ownerId:1, assignedTo:1, createdAt:new Date().toISOString() },
+    { id:'sched_2', type:'Meeting', leadId:'lead_3', leadName:'Phạm Thị Hoa', company:'XYZ Retail Group', stage:'Qualification', scheduledDate:today, scheduledTime:'14:30', agenda:'CFO intro call. Present ROI numbers.', done:true, ownerId:2, assignedTo:2, createdAt:new Date().toISOString() },
+    { id:'sched_3', type:'Email', leadId:'lead_2', leadName:'Trần Minh Đức', company:'ABC Manufacturing', stage:'Negotiation', scheduledDate:tomorrow.toISOString().split('T')[0], scheduledTime:'09:00', agenda:'Check on contract review status.', done:false, ownerId:1, assignedTo:1, createdAt:new Date().toISOString() },
+    { id:'sched_4', type:'Call', leadId:'lead_4', leadName:'Lê Văn Nam', company:'StartupVN', stage:'Prospecting', scheduledDate:tomorrow.toISOString().split('T')[0], scheduledTime:'11:00', agenda:'June follow-up call. [Assigned by Anna]', done:false, ownerId:0, assignedTo:3, createdAt:new Date().toISOString() },
+    { id:'sched_5', type:'Meeting', leadId:'lead_7', leadName:'Bùi Thị Lan', company:'MedTech Solutions', stage:'Proposal', scheduledDate:dayAfter3.toISOString().split('T')[0], scheduledTime:'15:00', agenda:'Board deck debrief. [Assigned by Anna]', done:false, ownerId:0, assignedTo:1, createdAt:new Date().toISOString() }
+  ];
+  if (typeof saveScheduled === 'function') saveScheduled(scheduled);
+  updateLeadsBadge();
   // Re-render current page
   renderPage(currentPage);
 }
@@ -2163,9 +1795,7 @@ function restoreAuthedSession() {
 
 document.addEventListener('DOMContentLoaded', function() {
   restoreAuthedSession();
-  const newLeads = getLeads().filter(l=>l.stage==='Prospecting').length;
-  const badge = document.getElementById('badge-leads');
-  if (badge && newLeads > 0) { badge.textContent = newLeads; badge.style.display = 'inline'; }
+  updateLeadsBadge();
   if (window.innerWidth <= 768) {
     const btn = document.getElementById('sidebar-toggle');
     if (btn) btn.style.display = 'flex';
@@ -2184,7 +1814,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   } catch (e) {}
 </script>
+<script src="js/leads-management.js"></script>
 <script src="js/dashboard-enhanced.js"></script>
+<script src="js/activity-log.js"></script>
+<script src="js/reports-analytics.js"></script>
 <script src="js/ai-email.js"></script>
 </body>
 

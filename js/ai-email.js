@@ -58,24 +58,43 @@ const STAGE_STRATEGY = {
 const TONE_RULES = {
   Professional: {
     salutation: 'Use a formal salutation with the contact\'s last name: "Dear Mr./Ms. [Last Name]," — extract the last name from the full name provided.',
-    language: `LANGUAGE RULES — PROFESSIONAL:\n- NO contractions\n- Formal vocabulary\n- No exclamation marks\n- Measured, authoritative, and respectful throughout.`,
-    cta: 'Frame the call-to-action formally: "I would welcome the opportunity to discuss this at your earliest convenience."',
+    language: `
+LANGUAGE RULES — PROFESSIONAL:
+- NO contractions. Write "I am" not "I'm", "we would" not "we'd", "do not" not "don't".
+- Formal vocabulary: use "regarding" not "about", "request" not "ask", "endeavour" not "try", "assist" not "help".
+- Complete, structured sentences. No casual phrases like "just checking in", "quick question", "hope you're doing well".
+- No exclamation marks.
+- Each paragraph has exactly one clear purpose.
+- Measured, authoritative, and respectful throughout.`,
+    cta: 'Frame the call-to-action formally: "I would welcome the opportunity to discuss this at your earliest convenience." or "Please do not hesitate to contact me should you require any further information."',
     closing: '"Yours sincerely," or "Best regards,"',
-    style: 'Write as a business letter — precise, dignified, and substantive.'
+    style: 'Write as a business letter — precise, dignified, and substantive. The prospect should sense they are being addressed by a senior professional.'
   },
   Friendly: {
     salutation: 'Use a warm first-name salutation: "Hi [First Name]," — use only the first name.',
-    language: `LANGUAGE RULES — FRIENDLY:\n- Conversational and warm, but still credible\n- Natural, human language\n- Short, readable sentences`,
-    cta: 'Friendly, low-pressure CTA: "Would you be open to a quick 15-minute call this week?"',
+    language: `
+LANGUAGE RULES — FRIENDLY:
+- Conversational and warm, but still credible. Contractions are welcome ("I'd love to", "we've seen").
+- Natural, human language. Avoid jargon. Write how a trusted colleague would speak.
+- One or two light personal touches are fine (acknowledge their industry, a shared context, a small compliment on their work).
+- Enthusiastic but not over the top — no excessive exclamation marks.
+- Short, readable sentences. One idea per sentence.`,
+    cta: 'Friendly, low-pressure CTA: "Would you be open to a quick 15-minute call this week?" or "Happy to jump on a call if that works for you."',
     closing: '"Best," or "Looking forward to connecting,"',
-    style: 'Write as if emailing a respected contact you enjoy working with.'
+    style: 'Write as if emailing a respected contact you enjoy working with — approachable, genuine, and helpful.'
   },
   Urgent: {
     salutation: 'Direct salutation: "Dear [First Name]," — concise and immediate.',
-    language: `LANGUAGE RULES — URGENT:\n- Time-sensitive, action-oriented language\n- Short, punchy sentences\n- Active voice only`,
-    cta: 'Urgent, specific CTA with a hard deadline or time constraint.',
-    closing: '"I look forward to your prompt response,"',
-    style: 'Write as if the window is closing — compelling and clear.'
+    language: `
+LANGUAGE RULES — URGENT:
+- Time-sensitive, action-oriented language. Every sentence drives toward a decision.
+- Use specific urgency signals: "before end of quarter", "this week only", "limited availability", "time-sensitive opportunity".
+- Short, punchy sentences. No filler. No pleasantries beyond a single line.
+- Create pressure through specificity, not aggression — deadlines, limited slots, expiring terms.
+- Active voice only: "Act now" not "Action should be taken".`,
+    cta: 'Urgent, specific CTA with a hard deadline or time constraint: "Could we connect before Friday to lock this in?" or "I have two slots remaining this week — would [Day] at [Time] work?"',
+    closing: '"I look forward to your prompt response," or "Please do reach out at your earliest convenience,"',
+    style: 'Write as if the window is closing. Compelling and clear — the prospect should feel they have a real reason to respond today.'
   }
 };
 
@@ -297,6 +316,7 @@ function selectLang(el) {
 function buildSystemPrompt() {
   const toneRule = TONE_RULES[selectedTone] || TONE_RULES.Professional;
   return `You are an expert B2B sales email copywriter with 15+ years of experience.
+Your emails achieve above-average reply rates because they are hyper-personalized, stage-perfect, and ruthlessly on-tone.
 
 TONE ENFORCEMENT — THIS IS THE MOST IMPORTANT INSTRUCTION:
 The requested tone is: ${selectedTone.toUpperCase()}
@@ -307,9 +327,14 @@ CLOSING RULE: ${toneRule.closing}
 CTA RULE: ${toneRule.cta}
 STYLE GOAL: ${toneRule.style}
 
+You MUST follow every language rule above without exception. Do NOT default to a generic friendly/casual style.
+
 CRITICAL OUTPUT FORMAT:
 Respond with ONLY a valid JSON object — no markdown fences, no preamble, no extra text:
-{"subject": "subject line here", "body": "email body here with \\n for line breaks between paragraphs"}`;
+{"subject": "subject line here", "body": "email body here with \\n for line breaks between paragraphs"}
+
+Subject line: compelling and specific — never use "Following up" or "Checking in".
+Body: must feel personally written for THIS prospect, not templated.`;
 }
 
 function buildUserPrompt(lead, acts, effectiveStage, purpose, extraContext, language) {
@@ -340,18 +365,25 @@ ${actHistory}
 ═══ EMAIL STRATEGY FOR THIS STAGE ═══
 ${strategy.aiInstruction || STAGE_MEANING[effectiveStage] || 'Write a helpful, personalized email appropriate for this pipeline stage.'}
 
-═══ TONE & STYLE (MANDATORY) ═══
+═══ TONE & STYLE (MANDATORY — override any defaults) ═══
 Tone: ${selectedTone.toUpperCase()}
 Salutation to use: ${toneRule.salutation}
+Language style: See system prompt rules — enforce strictly.
 Closing sign-off: ${toneRule.closing}
 
 ═══ EMAIL BRIEF ═══
 - Purpose of this email: ${purpose || 'General outreach'}
-- Output Language: Write the ENTIRE email in ${language}
+- Output Language: Write the ENTIRE email in ${language} — including salutation, body, and sign-off
 - Sender sign-off: "${u.name}" on one line, then "${senderRole}" on the next line
-${extraContext ? `\n═══ ADDITIONAL CONTEXT ═══\n${extraContext}` : ''}
+${extraContext ? `\n═══ ADDITIONAL CONTEXT FROM SALESPERSON ═══\n${extraContext}` : ''}
 
-Output is ONLY the JSON object, nothing else.`;
+FINAL CHECKLIST before outputting:
+✓ Salutation matches the ${selectedTone} tone rule exactly
+✓ No language violations (e.g. no contractions if Professional)
+✓ CTA is appropriate for the tone and stage
+✓ Signed off with sender's name and role
+✓ No placeholder text like [Company Name] — use actual data above
+✓ Output is ONLY the JSON object, nothing else`;
 }
 
 function fallbackEmail(lead, acts) {
@@ -368,7 +400,7 @@ function fallbackEmail(lead, acts) {
   }
   return {
     subject: `Next steps for ${lead.company} with SalesTrack`,
-    body: `Hi ${first},\n\n${lastAct ? `Thanks for the recent ${lastAct.type.toLowerCase()}. ` : ''}I wanted to follow up on how SalesTrack can help ${lead.company} at this stage.\n\nWould you have 15 minutes this week for a quick chat?\n\nBest regards,\n${u.name}\n${senderRole}`
+    body: `Hi ${first},\n\n${lastAct ? `Thanks for the recent ${lastAct.type.toLowerCase()}. ` : ''}I wanted to follow up on how SalesTrack can help ${lead.company} at this stage.\n\nA few highlights:\n• A clear, easy-to-track pipeline\n• Automated sales activity logging\n• Real-time reporting and forecasts\n\nWould you have 15 minutes this week for a quick chat?\n\nBest regards,\n${u.name}\n${senderRole}`
   };
 }
 
@@ -450,12 +482,18 @@ async function generateEmail() {
     email = fallbackEmail(lead, acts);
     if (err.message === 'NO_KEY') {
       showToast('No API key — enter your Gemini key in the panel below and click Save Key.', 'warning');
+    } else if (err.message.includes('HTTP 400') || err.message.includes('INVALID_ARGUMENT')) {
+      showToast(`Bad request — ${err.message} · Check model selection.`, 'error');
+    } else if (err.message.includes('HTTP 403') || err.message.includes('HTTP 401') || err.message.includes('PERMISSION_DENIED')) {
+      showToast('API key rejected — verify your key in the panel below.', 'error');
+    } else if (err.message.includes('HTTP 404') || err.message.includes('NOT_FOUND')) {
+      showToast('Model not found — try switching to Gemini 2.0 Flash in the panel below.', 'error');
     } else if (err.message === 'BAD_SHAPE') {
-      showToast('AI replied in unexpected format — template draft shown. Try again.', 'warning');
+      showToast('AI replied but in unexpected format — template draft shown. Try again.', 'warning');
     } else {
       showToast(`AI error: ${err.message} — template draft shown.`, 'error');
     }
-    console.error('[SalesTrack AI]', err.message);
+    console.error('[SalesTrack AI] Gemini error:', err.message);
   }
 
   clearInterval(tipInterval);
@@ -487,10 +525,6 @@ function renderEmailOutput(email, lead) {
         <input class="form-input" id="email-cta-label" placeholder="Xem tài liệu" value="Xem tài liệu" style="width:140px">
       </div>
     </div>
-    <div style="margin-bottom:14px">
-      <label class="form-label"><i class="fa-solid fa-image" style="margin-right:4px;color:var(--accent)"></i>Header Image URL <span style="font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">(để trống để dùng banner mặc định)</span></label>
-      <input class="form-input" id="email-header-img" placeholder="https://... hoặc để trống" value="">
-    </div>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-secondary" onclick="generateEmail()"><i class="fa-solid fa-rotate"></i> Regenerate</button>
       <div style="flex:1"></div>
@@ -503,7 +537,7 @@ function readEmail() {
   return {
     subject: document.getElementById('email-subject')?.value || (lastEmail?.subject || ''),
     body: document.getElementById('email-body')?.value || (lastEmail?.body || ''),
-    headerImg: document.getElementById('email-header-img')?.value || '',
+    headerImg: '',
     ctaUrl: document.getElementById('email-cta-url')?.value || '',
     ctaLabel: document.getElementById('email-cta-label')?.value || 'Xem tài liệu'
   };
@@ -563,7 +597,18 @@ function openDesignEmail() {
   const html = buildEmailHtml();
   const shell = document.getElementById('email-preview-shell');
   if (shell) {
-    shell.innerHTML = `<iframe style="width:100%;height:560px;border:none;border-radius:8px;background:#fff" srcdoc="${html.replace(/"/g, '&quot;')}"></iframe>`;
+    shell.innerHTML = '';
+    const frame = document.createElement('iframe');
+    frame.title = 'Email preview';
+    frame.style.cssText = 'width:100%;height:560px;border:none;border-radius:8px;background:#fff';
+    shell.appendChild(frame);
+
+    const doc = frame.contentDocument || frame.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+    }
   }
   openModal('design-modal');
 }
