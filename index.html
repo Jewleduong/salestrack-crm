@@ -729,14 +729,15 @@ function getTypeColor(t) { return ({Call:'var(--green)',Email:'var(--blue)',Meet
 function getTypeBg(t) { return ({Call:'var(--green-bg)',Email:'var(--blue-bg)',Meeting:'var(--purple-bg)',Note:'var(--bg-input)'})[t]||'var(--bg-input)'; }
 function getTypeBadgeClass(t) { return ({Call:'badge-call',Email:'badge-email',Meeting:'badge-meeting',Note:'badge-note'})[t]||'badge-note'; }
 
-/* ── TOAST ── */
+/* ── TOAST (errors & warnings only — no operational success/info banners) ── */
 function showToast(msg, type='info') {
+  if (type !== 'error' && type !== 'warning') return;
   const icons = { success:'fa-circle-check', error:'fa-circle-xmark', info:'fa-circle-info', warning:'fa-triangle-exclamation' };
   const t = document.createElement('div');
   t.className = 'toast toast-' + type;
   t.innerHTML = `<i class="fa-solid ${icons[type]||icons.info}"></i>${msg}`;
   document.getElementById('toast-container').appendChild(t);
-  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 3000);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 3500);
 }
 
 /* ── DRAWER ── */
@@ -818,6 +819,7 @@ function saveProfile() {
   CURRENT_USER.name = name;
   CURRENT_USER.email = email;
   CURRENT_USER.initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  try { localStorage.setItem('salestrack_current_user', JSON.stringify(CURRENT_USER)); } catch (e) {}
   updateUserUI();
   closeModal('profile-modal');
   showToast('Profile updated successfully', 'success');
@@ -885,22 +887,21 @@ function doSignIn() {
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Signing in...';
   setTimeout(() => {
     applyAccount(_selectedAccountId);
+    try { sessionStorage.setItem('st_authed', '1'); } catch (e) {}
     const overlay = document.getElementById('signin-overlay');
     overlay.classList.add('hidden');
     setTimeout(() => overlay.style.display = 'none', 350);
-    const acc = ACCOUNTS[_selectedAccountId];
-    showToast('Signed in as: ' + acc.name + ' · ' + acc.roleLabel, 'success');
     btn.disabled = false;
-    btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Sign in as <span id="signin-role-label">' + acc.name + '</span>';
-    navigateTo('dashboard');
+    btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Đăng nhập hệ thống — <span id="signin-role-label">' + ACCOUNTS[_selectedAccountId].name + '</span>';
+    navigateTo(pageFromHash());
   }, 700);
 }
 function doSignOut() {
   if (!confirm('Are you sure you want to sign out?')) return;
+  try { sessionStorage.removeItem('st_authed'); } catch (e) {}
   const overlay = document.getElementById('signin-overlay');
   overlay.style.display = 'flex';
   setTimeout(() => overlay.classList.remove('hidden'), 10);
-  showToast('Signed out', 'info');
   selectAccount(0);
 }
 
@@ -908,6 +909,7 @@ function applyAccount(id) {
   const acc = ACCOUNTS[id];
   Object.assign(CURRENT_USER, acc);
   document.body.dataset.role = acc.role;
+  try { localStorage.setItem('salestrack_current_user', JSON.stringify(CURRENT_USER)); } catch (e) {}
   updateUserUI();
 }
 function applyRole(r) { applyAccount(r === 'manager' ? 0 : 1); } // legacy stub
@@ -942,9 +944,18 @@ function updateUserUI() {
 }
 
 /* ── NAVIGATION (SPA) ── */
+const VALID_PAGES = ['dashboard','leads','deals','activities','ai','reports'];
 let currentPage = 'dashboard';
-function navigateTo(page) {
+function pageFromHash() {
+  const p = (location.hash || '').replace(/^#/, '');
+  return VALID_PAGES.includes(p) ? p : 'dashboard';
+}
+function navigateTo(page, skipHashUpdate) {
+  if (!VALID_PAGES.includes(page)) page = 'dashboard';
   currentPage = page;
+  if (!skipHashUpdate && location.hash !== '#' + page) {
+    history.replaceState(null, '', '#' + page);
+  }
   closeDrawer();
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const navEl = document.getElementById('nav-' + page);
@@ -2136,19 +2147,42 @@ function loadSampleData() {
 }
 
 /* ── BOOTSTRAP ── */
+function restoreAuthedSession() {
+  try {
+    if (sessionStorage.getItem('st_authed') !== '1') return;
+    const saved = JSON.parse(localStorage.getItem('salestrack_current_user') || 'null');
+    if (saved && saved.email) {
+      const idx = ACCOUNTS.findIndex(a => a.email === saved.email);
+      if (idx >= 0) { _selectedAccountId = idx; selectAccount(idx); applyAccount(idx); }
+      else { Object.assign(CURRENT_USER, saved); updateUserUI(); }
+    }
+    const overlay = document.getElementById('signin-overlay');
+    if (overlay) { overlay.classList.add('hidden'); overlay.style.display = 'none'; }
+  } catch (e) {}
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-  // Update leads badge
+  restoreAuthedSession();
   const newLeads = getLeads().filter(l=>l.stage==='Prospecting').length;
   const badge = document.getElementById('badge-leads');
   if (badge && newLeads > 0) { badge.textContent = newLeads; badge.style.display = 'inline'; }
-  // Mobile
   if (window.innerWidth <= 768) {
     const btn = document.getElementById('sidebar-toggle');
     if (btn) btn.style.display = 'flex';
   }
-  // Initial render
-  navigateTo('dashboard');
+  window.addEventListener('hashchange', function() {
+    const p = pageFromHash();
+    if (p !== currentPage) navigateTo(p, true);
+  });
+  navigateTo(pageFromHash(), true);
 });
+</script>
+<script type="module">
+  try {
+    if (import.meta && import.meta.env && import.meta.env.VITE_GOOGLE_AI_KEY) {
+      window.__VITE_GOOGLE_AI_KEY = import.meta.env.VITE_GOOGLE_AI_KEY;
+    }
+  } catch (e) {}
 </script>
 <script src="js/dashboard-enhanced.js"></script>
 <script src="js/ai-email.js"></script>

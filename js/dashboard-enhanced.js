@@ -79,7 +79,6 @@
   };
 
   window.triggerAsynchronousDashboardRecalc = function () {
-    showToast('Recalculating metrics…', 'info');
     setTimeout(() => window.renderDashboardCharts(), 200);
   };
 

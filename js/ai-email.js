@@ -107,7 +107,7 @@ function aiGetCurrentUser() {
 }
 
 function getApiKey() {
-  return localStorage.getItem('google_ai_key') || '';
+  return (window.__VITE_GOOGLE_AI_KEY) || localStorage.getItem('google_ai_key') || '';
 }
 
 function getGeminiUrl() {
@@ -236,9 +236,6 @@ function initAIEmailPage() {
   populateLeads();
   initApiKeyPanel();
   setApiKeyPanelVisible(true);
-  if (_aiUsingDemo) {
-    setTimeout(() => showToast('No CRM data found — loaded 3 demo leads so you can test the flow.', 'info'), 400);
-  }
 }
 
 function populateLeads() {
