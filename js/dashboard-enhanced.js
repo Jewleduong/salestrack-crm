@@ -152,7 +152,22 @@
   window.filterUpcomingTimelineFeed = function () {
     const body = document.getElementById('render-timeline-body');
     if (!body) return;
-    let acts = [...MASTER_ACTIVITIES];
+    let acts = (typeof getScheduled === 'function' ? getScheduled() : []).map(s => {
+      const owner = ACCOUNTS.find(a => a.id === (s.assignedTo ?? s.ownerId));
+      const scheduledAt = s.scheduledDate + 'T' + (s.scheduledTime || '00:00');
+      return {
+        id: s.id,
+        type: s.type || 'Task',
+        ownerId: s.assignedTo ?? s.ownerId,
+        repName: owner?.name || 'Unassigned',
+        leadName: s.leadName || '',
+        company: s.company || '',
+        stage: s.stage || '',
+        notes: s.agenda || 'Scheduled follow-up',
+        date: scheduledAt,
+        done: !!s.done,
+      };
+    });
     const filterWrap = document.getElementById('timeline-filter-wrapper');
     if (CURRENT_USER.role === 'manager') {
       if (filterWrap) filterWrap.style.display = 'block';
@@ -167,10 +182,11 @@
       const uid = CURRENT_USER.id ?? ownerIdForName(CURRENT_USER.name);
       acts = acts.filter(a => a.ownerId === uid);
     }
-    const baseline = new Date('2026-06-10T00:00:00Z');
-    acts = acts.filter(a => new Date(a.date) >= baseline).sort((a, b) => new Date(a.date) - new Date(b.date));
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    acts = acts.filter(a => !a.done && new Date(a.date) >= todayStart).sort((a, b) => new Date(a.date) - new Date(b.date));
     if (!acts.length) {
-      body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:12px;font-style:italic">No future activities logged matching target criteria.</div>';
+      body.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:12px;font-style:italic">No scheduled tasks matching target criteria.</div>';
       return;
     }
     const typeStyles = {
@@ -188,7 +204,7 @@
           </div>
           <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-primary)">${act.notes}</div>
           <div style="font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;border-top:1px solid var(--border-light);padding-top:8px">
-            <span>Rep: ${act.repName}</span><span><i class="fa-regular fa-building"></i> ${act.company}</span>
+            <span>Rep: ${act.repName}</span><span><i class="fa-regular fa-building"></i> ${act.company || act.leadName}</span>
           </div>
         </div>`;
     }).join('');

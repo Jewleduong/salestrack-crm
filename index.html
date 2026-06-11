@@ -96,7 +96,7 @@
 </nav>
 
 <header id="topbar">
-  <button class="topbar-btn" id="sidebar-toggle" style="margin-right:4px;display:none" onclick="document.getElementById('sidebar').classList.toggle('open')">
+  <button class="topbar-btn" id="sidebar-toggle" style="margin-right:4px" onclick="toggleSidebar()">
     <i class="fa-solid fa-bars"></i>
   </button>
   <div style="flex:1">
@@ -233,26 +233,26 @@
           <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:16px">General Settings</div>
           <div class="setting-row">
             <div><div class="setting-label">Language</div><div class="setting-desc">Interface language</div></div>
-            <select class="form-input" style="width:140px">
-              <option>English</option><option>Vietnamese</option><option>Japanese</option>
+            <select class="form-input" id="settings-language" style="width:140px" onchange="saveSetting('language', this.value)">
+              <option value="English">English</option><option value="Vietnamese">Vietnamese</option><option value="Japanese">Japanese</option>
             </select>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Currency</div><div class="setting-desc">Default currency display</div></div>
-            <select class="form-input" style="width:140px">
-              <option>USD ($)</option><option>VND (₫)</option><option>EUR (€)</option>
+            <select class="form-input" id="settings-currency" style="width:140px" onchange="saveSetting('currency', this.value)">
+              <option value="USD ($)">USD ($)</option><option value="VND (₫)">VND (₫)</option><option value="EUR (€)">EUR (€)</option>
             </select>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Date Format</div><div class="setting-desc">How dates are displayed</div></div>
-            <select class="form-input" style="width:140px">
-              <option>MM/DD/YYYY</option><option>DD/MM/YYYY</option><option>YYYY-MM-DD</option>
+            <select class="form-input" id="settings-date-format" style="width:140px" onchange="saveSetting('dateFormat', this.value)">
+              <option value="MM/DD/YYYY">MM/DD/YYYY</option><option value="DD/MM/YYYY">DD/MM/YYYY</option><option value="YYYY-MM-DD">YYYY-MM-DD</option>
             </select>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Time Zone</div><div class="setting-desc">Your local time zone</div></div>
-            <select class="form-input" style="width:140px">
-              <option>UTC+7 (Hanoi)</option><option>UTC+0 (London)</option><option>UTC-5 (New York)</option>
+            <select class="form-input" id="settings-timezone" style="width:140px" onchange="saveSetting('timezone', this.value)">
+              <option value="UTC+7 (Hanoi)">UTC+7 (Hanoi)</option><option value="UTC+0 (London)">UTC+0 (London)</option><option value="UTC-5 (New York)">UTC-5 (New York)</option>
             </select>
           </div>
         </div>
@@ -261,23 +261,23 @@
           <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:16px">Notification Preferences</div>
           <div class="setting-row">
             <div><div class="setting-label">New Lead Assigned</div><div class="setting-desc">When a lead is assigned to you</div></div>
-            <label class="toggle-switch"><input type="checkbox" checked onchange="showToast('Setting saved','success')"><span class="toggle-slider"></span></label>
+            <label class="toggle-switch"><input type="checkbox" id="notify-new-lead" checked onchange="saveSetting('notifyNewLead', this.checked)"><span class="toggle-slider"></span></label>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Deal Stage Change</div><div class="setting-desc">When a deal moves to a new stage</div></div>
-            <label class="toggle-switch"><input type="checkbox" checked onchange="showToast('Setting saved','success')"><span class="toggle-slider"></span></label>
+            <label class="toggle-switch"><input type="checkbox" id="notify-stage-change" checked onchange="saveSetting('notifyStageChange', this.checked)"><span class="toggle-slider"></span></label>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Activity Reminders</div><div class="setting-desc">Reminders for follow-up activities</div></div>
-            <label class="toggle-switch"><input type="checkbox" checked onchange="showToast('Setting saved','success')"><span class="toggle-slider"></span></label>
+            <label class="toggle-switch"><input type="checkbox" id="notify-activity-reminders" checked onchange="saveSetting('notifyActivityReminders', this.checked)"><span class="toggle-slider"></span></label>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Weekly Report</div><div class="setting-desc">Weekly pipeline digest email</div></div>
-            <label class="toggle-switch"><input type="checkbox" onchange="showToast('Setting saved','success')"><span class="toggle-slider"></span></label>
+            <label class="toggle-switch"><input type="checkbox" id="notify-weekly-report" onchange="saveSetting('notifyWeeklyReport', this.checked)"><span class="toggle-slider"></span></label>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Team Updates</div><div class="setting-desc">Updates from other team members</div></div>
-            <label class="toggle-switch"><input type="checkbox" onchange="showToast('Setting saved','success')"><span class="toggle-slider"></span></label>
+            <label class="toggle-switch"><input type="checkbox" id="notify-team-updates" onchange="saveSetting('notifyTeamUpdates', this.checked)"><span class="toggle-slider"></span></label>
           </div>
         </div>
 
@@ -292,11 +292,11 @@
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Compact View</div><div class="setting-desc">Reduce spacing for more data</div></div>
-            <label class="toggle-switch"><input type="checkbox" onchange="showToast('Compact view toggled','info')"><span class="toggle-slider"></span></label>
+            <label class="toggle-switch"><input type="checkbox" id="settings-compact-toggle" onchange="toggleCompactViewFromSettings(this)"><span class="toggle-slider"></span></label>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Sidebar Collapsed</div><div class="setting-desc">Minimise sidebar by default</div></div>
-            <label class="toggle-switch"><input type="checkbox" onchange="showToast('Sidebar preference saved','info')"><span class="toggle-slider"></span></label>
+            <label class="toggle-switch"><input type="checkbox" id="settings-sidebar-toggle" onchange="toggleSidebarFromSettings(this)"><span class="toggle-slider"></span></label>
           </div>
           <div style="margin-top:16px">
             <div class="setting-label" style="margin-bottom:10px">Accent Color</div>
@@ -315,11 +315,11 @@
           <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:16px">Privacy & Security</div>
           <div class="setting-row">
             <div><div class="setting-label">Show Online Status</div><div class="setting-desc">Let team see when you're active</div></div>
-            <label class="toggle-switch"><input type="checkbox" checked onchange="showToast('Setting saved','success')"><span class="toggle-slider"></span></label>
+            <label class="toggle-switch"><input type="checkbox" id="privacy-online-status" checked onchange="saveSetting('privacyOnlineStatus', this.checked)"><span class="toggle-slider"></span></label>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Activity Visibility</div><div class="setting-desc">Allow manager to see all activities</div></div>
-            <label class="toggle-switch"><input type="checkbox" checked onchange="showToast('Setting saved','success')"><span class="toggle-slider"></span></label>
+            <label class="toggle-switch"><input type="checkbox" id="privacy-activity-visible" checked onchange="saveSetting('privacyActivityVisible', this.checked)"><span class="toggle-slider"></span></label>
           </div>
           <div class="setting-row">
             <div><div class="setting-label">Two-Factor Auth</div><div class="setting-desc">Extra security for your account</div></div>
@@ -866,7 +866,8 @@ function getActivities() { return JSON.parse(localStorage.getItem('salestrack_ac
 function saveActivities(d){ localStorage.setItem('salestrack_activities', JSON.stringify(d)); }
 
 /* ── FORMATTERS ── */
-function formatCurrency(n) { if (!n && n !== 0) return '$0'; return '$' + Number(n).toLocaleString('en-US'); }
+function formatCurrency(n) { if (!n && n !== 0) return '$0K'; return '$' + Number(n).toLocaleString('en-US') + 'K'; }
+function formatCurrencyK(n) { return formatCurrency(n); }
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
@@ -927,7 +928,30 @@ function toggleThemeFromSettings(el) {
 function setAccentColor(color) {
   document.documentElement.style.setProperty('--accent', color);
   document.documentElement.style.setProperty('--accent-hover', color);
+  localStorage.setItem('salestrack_accent', color);
   showToast('Accent color updated', 'success');
+}
+function saveSetting(key, value) {
+  try { localStorage.setItem('salestrack_setting_' + key, JSON.stringify(value)); } catch (e) {}
+}
+function getSetting(key, fallback) {
+  try {
+    const raw = localStorage.getItem('salestrack_setting_' + key);
+    return raw === null ? fallback : JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+function applyCompactView(enabled) {
+  document.body.classList.toggle('compact-view', !!enabled);
+  localStorage.setItem('salestrack_compact_view', enabled ? '1' : '0');
+}
+function toggleCompactViewFromSettings(el) {
+  applyCompactView(el.checked);
+}
+function toggleSidebarFromSettings(el) {
+  document.body.classList.toggle('sidebar-collapsed', !!el.checked);
+  try { localStorage.setItem('salestrack_sidebar_collapsed', el.checked ? '1' : '0'); } catch (e) {}
 }
 (function initTheme() {
   const saved = localStorage.getItem('salestrack_theme');
@@ -937,11 +961,24 @@ function setAccentColor(color) {
       document.getElementById('theme-icon').className = 'fa-solid fa-sun';
     }
   }
+  const accent = localStorage.getItem('salestrack_accent');
+  if (accent) {
+    document.documentElement.style.setProperty('--accent', accent);
+    document.documentElement.style.setProperty('--accent-hover', accent);
+  }
 })();
 
 /* ── DROPDOWN ── */
 function toggleAccountDropdown() { document.getElementById('account-dropdown').classList.toggle('open'); }
 function closeDropdown() { document.getElementById('account-dropdown').classList.remove('open'); }
+function toggleSidebar() {
+  if (window.innerWidth <= 768) {
+    document.getElementById('sidebar').classList.toggle('open');
+  } else {
+    document.body.classList.toggle('sidebar-collapsed');
+    try { localStorage.setItem('salestrack_sidebar_collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0'); } catch (e) {}
+  }
+}
 document.addEventListener('click', function(e) {
   if (!document.getElementById('account-chip').contains(e.target)) closeDropdown();
   if (!document.getElementById('notif-modal').contains(e.target) && !document.getElementById('notif-btn').contains(e.target)) {
@@ -993,6 +1030,33 @@ function openSettingsModal() {
   const isDark = document.documentElement.dataset.theme === 'dark';
   const toggle = document.getElementById('settings-dark-toggle');
   if (toggle) toggle.checked = isDark;
+  const compact = document.getElementById('settings-compact-toggle');
+  if (compact) compact.checked = document.body.classList.contains('compact-view');
+  const sidebar = document.getElementById('settings-sidebar-toggle');
+  if (sidebar) sidebar.checked = document.body.classList.contains('sidebar-collapsed');
+  const selectMap = {
+    'settings-language': ['language', 'English'],
+    'settings-currency': ['currency', 'USD ($)'],
+    'settings-date-format': ['dateFormat', 'MM/DD/YYYY'],
+    'settings-timezone': ['timezone', 'UTC+7 (Hanoi)'],
+  };
+  Object.entries(selectMap).forEach(([id, cfg]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = getSetting(cfg[0], cfg[1]);
+  });
+  const boolMap = {
+    'notify-new-lead': ['notifyNewLead', true],
+    'notify-stage-change': ['notifyStageChange', true],
+    'notify-activity-reminders': ['notifyActivityReminders', true],
+    'notify-weekly-report': ['notifyWeeklyReport', false],
+    'notify-team-updates': ['notifyTeamUpdates', false],
+    'privacy-online-status': ['privacyOnlineStatus', true],
+    'privacy-activity-visible': ['privacyActivityVisible', true],
+  };
+  Object.entries(boolMap).forEach(([id, cfg]) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!getSetting(cfg[0], cfg[1]);
+  });
   openModal('settings-modal');
 }
 function switchSettingsTab(tab) {
@@ -1197,6 +1261,8 @@ let dealView = 'table';
 let dealSearchQuery = '';
 let dealStageFilter = '';
 let dealSPFilter = '';
+let dealSortKey = 'updated';
+let dealSortDir = 'desc';
 
 async function persistDealLead(lead, after) {
     if (!window.SalesTrackSupabase) return;
@@ -1313,6 +1379,15 @@ function getDealsHTML() {
           <option value="">All Salespeople</option>
           ${SALESPEOPLE.map(sp => `<option value="${sp}" ${dealSPFilter === sp ? 'selected' : ''}>👤 ${sp}</option>`).join('')}
         </select>` : ''}
+
+        <select onchange="handleDealSort(this.value)" class="form-input !w-auto !py-2 !text-xs font-bold">
+          <option value="updated:desc" ${dealSortKey === 'updated' && dealSortDir === 'desc' ? 'selected' : ''}>Sort: Recently updated</option>
+          <option value="value:desc" ${dealSortKey === 'value' && dealSortDir === 'desc' ? 'selected' : ''}>Sort: Value high to low</option>
+          <option value="value:asc" ${dealSortKey === 'value' && dealSortDir === 'asc' ? 'selected' : ''}>Sort: Value low to high</option>
+          <option value="expected:desc" ${dealSortKey === 'expected' && dealSortDir === 'desc' ? 'selected' : ''}>Sort: Expected value high to low</option>
+          <option value="stage:asc" ${dealSortKey === 'stage' && dealSortDir === 'asc' ? 'selected' : ''}>Sort: Stage order</option>
+          <option value="name:asc" ${dealSortKey === 'name' && dealSortDir === 'asc' ? 'selected' : ''}>Sort: Name A-Z</option>
+        </select>
       </div>
     </div>
 
@@ -1330,6 +1405,15 @@ function renderDealsTable() {
         (dealSPFilter === '' || (d.assignedTo || '') === dealSPFilter) &&
         (CURRENT_USER.role === 'manager' || (d.assignedTo || '') === CURRENT_USER.name)
     );
+    deals.sort((a, b) => {
+        const expected = d => Math.round(((d.dealSize || 0) * (d.probability || 0)) / 100);
+        const dir = dealSortDir === 'asc' ? 1 : -1;
+        if (dealSortKey === 'value') return ((a.dealSize || 0) - (b.dealSize || 0)) * dir;
+        if (dealSortKey === 'expected') return (expected(a) - expected(b)) * dir;
+        if (dealSortKey === 'stage') return (STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage)) * dir;
+        if (dealSortKey === 'name') return String(a.name || '').localeCompare(String(b.name || '')) * dir;
+        return (new Date(a.updatedAt || 0) - new Date(b.updatedAt || 0)) * dir;
+    });
 
     if (dealView === 'table') {
         area.innerHTML = `
@@ -1370,7 +1454,7 @@ function renderDealsTable() {
                                     </div>
                                 </div>
                             </td>
-                            <td class="font-bold text-slate-700">${formatCurrency(d.dealSize)}</td>
+                            <td class="font-bold text-slate-700">${formatCurrencyK(d.dealSize)}</td>
                             <td onclick="event.stopPropagation()">
                                 <div class="flex items-center gap-1">
                                     <button onclick="shiftDealStage('${d.id}', -1)" class="w-6 h-6 border rounded text-slate-400 hover:text-indigo-600 bg-white" ${sIdx <= 0 ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}><i class="fa-solid fa-chevron-left text-[8px]"></i></button>
@@ -1378,7 +1462,7 @@ function renderDealsTable() {
                                     <button onclick="shiftDealStage('${d.id}', 1)" class="w-6 h-6 border rounded text-slate-400 hover:text-indigo-600 bg-white" ${sIdx >= STAGES.length - 1 || sIdx === -1 ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}><i class="fa-solid fa-chevron-right text-[8px]"></i></button>
                                 </div>
                             </td>
-                            <td class="font-extrabold text-indigo-600">${formatCurrency(ev)}</td>
+                            <td class="font-extrabold text-indigo-600">${formatCurrencyK(ev)}</td>
                             <td>${actCell}</td>
                             <td class="text-xs text-slate-500 whitespace-nowrap">${d.updatedAt ? timeAgo(d.updatedAt) : '—'}</td>
                             <td class="text-right" onclick="event.stopPropagation()">
@@ -1398,7 +1482,7 @@ function renderDealsTable() {
     } else {
         area.innerHTML = `
         <div class="flex gap-4 overflow-x-auto pb-4 items-start">
-            ${STAGES.slice(0, 5).map(stage => {
+            ${STAGES.map(stage => {
                 const stageDeals = deals.filter(d => d.stage === stage);
                 const stageTotal = stageDeals.reduce((s, d) => s + (d.dealSize || 0), 0);
                 return `
@@ -1408,7 +1492,7 @@ function renderDealsTable() {
                             <span class="text-[10px] font-extrabold uppercase text-slate-500">${stage}</span>
                             <span class="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-600">${stageDeals.length}</span>
                         </div>
-                        <div class="text-sm font-bold text-slate-800">${formatCurrency(stageTotal)}</div>
+                        <div class="text-sm font-bold text-slate-800">${formatCurrencyK(stageTotal)}</div>
                     </div>
                     <div class="bg-slate-50/50 border p-2 rounded-b-xl min-h-[450px] space-y-3"
                          ondragover="event.preventDefault()" ondrop="dropDeal(event, '${stage}')">
@@ -1419,7 +1503,7 @@ function renderDealsTable() {
                                 <div class="text-[10px] text-slate-500 mb-2">${d.company}</div>
                                 ${d.assignedTo ? `<div class="text-[9px] text-slate-400 mb-2"><i class="fa-solid fa-user-tie"></i> ${d.assignedTo}</div>` : ''}
                                 <div class="flex justify-between items-center border-t border-slate-100 pt-2 mt-2">
-                                    <div class="text-[11px] font-extrabold text-indigo-600">${formatCurrency(d.dealSize)}</div>
+                                    <div class="text-[11px] font-extrabold text-indigo-600">${formatCurrencyK(d.dealSize)}</div>
                                     <div class="text-[9px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">${d.probability}%</div>
                                 </div>
                             </div>
@@ -1435,6 +1519,12 @@ function renderDealsTable() {
 function handleDealSearch(v) { dealSearchQuery = v; renderDealsTable(); }
 function handleDealStageFilter(v) { dealStageFilter = v; renderDealsTable(); }
 function handleDealSPFilter(v) { dealSPFilter = v; renderDealsTable(); }
+function handleDealSort(v) {
+    const [key, dir] = String(v || 'updated:desc').split(':');
+    dealSortKey = key || 'updated';
+    dealSortDir = dir || 'desc';
+    renderDealsTable();
+}
 function switchDealView(v) {
     dealView = v;
     const btnTable  = document.getElementById('view-btn-table');
@@ -1813,12 +1903,16 @@ async function restoreAuthedSession() {
 }
 
 document.addEventListener('DOMContentLoaded', async function() {
+  try {
+    if (localStorage.getItem('salestrack_sidebar_collapsed') === '1' && window.innerWidth > 768) {
+      document.body.classList.add('sidebar-collapsed');
+    }
+    if (localStorage.getItem('salestrack_compact_view') === '1') {
+      document.body.classList.add('compact-view');
+    }
+  } catch (e) {}
   const authed = await restoreAuthedSession();
   if (authed) updateLeadsBadge();
-  if (window.innerWidth <= 768) {
-    const btn = document.getElementById('sidebar-toggle');
-    if (btn) btn.style.display = 'flex';
-  }
   window.addEventListener('hashchange', function() {
     const p = pageFromHash();
     if (p !== currentPage) navigateTo(p, true);

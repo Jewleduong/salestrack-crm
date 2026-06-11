@@ -90,6 +90,15 @@
 
   /* MAIN */
   #main-wrapper { margin-left: var(--sidebar-w); margin-top: var(--topbar-h); min-height: calc(100vh - var(--topbar-h)); width: calc(100% - var(--sidebar-w)); padding: 24px 28px; transition: margin .25s; }
+  body.sidebar-collapsed #sidebar { transform: translateX(calc(-1 * var(--sidebar-w))); }
+  body.sidebar-collapsed #topbar { left: 0; }
+  body.sidebar-collapsed #main-wrapper { margin-left: 0; width: 100%; }
+  #sidebar-toggle { display: flex !important; }
+  body.compact-view #main-wrapper { padding: 14px 18px; }
+  body.compact-view .card { padding: 14px 16px; }
+  body.compact-view .data-table th,
+  body.compact-view .data-table td { padding: 8px 10px; }
+  body.compact-view .page-header { margin-bottom: 12px; }
 
   /* CARD */
   .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 22px; box-shadow: var(--shadow); transition: background .2s, border .2s; }
