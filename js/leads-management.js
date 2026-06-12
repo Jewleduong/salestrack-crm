@@ -62,11 +62,13 @@ function getLeadsHTML() {
           <option value="">Default</option>
           <option value="newest">Newest to Oldest Interacted</option>
           <option value="oldest">Oldest to Newest Interacted</option>
+          <option value="created-desc">Newest Created</option>
+          <option value="created-asc">Oldest Created</option>
         </select>
         ${isManager ? `
         <select class="form-input" style="width:160px" id="lead-assignee-filter" onchange="filterLeads()">
           <option value="">All Sales Members</option>
-          ${ACCOUNTS.filter(a => a.role !== 'manager').map(a => `<option value="${a.name}">${a.name}</option>`).join('')}
+          ${getSalesMemberAccounts().map(a => `<option value="${a.name}">${a.name}</option>`).join('')}
         </select>` : `
         <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--accent-light);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius);font-size:12px;color:var(--accent-text)">
           <i class="fa-solid fa-user-tie"></i>
@@ -115,6 +117,11 @@ function renderLeadsTable() {
       return { ...l, _lastInteracted: lastDate };
     });
     leads.sort((a, b) => sortF === 'newest' ? b._lastInteracted - a._lastInteracted : a._lastInteracted - b._lastInteracted);
+  } else if (sortF === 'created-desc' || sortF === 'created-asc') {
+    leads.sort((a, b) => {
+      const diff = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      return sortF === 'created-asc' ? diff : -diff;
+    });
   }
 
   const countEl = document.getElementById('leads-count-label');
@@ -171,6 +178,7 @@ function openLeadDrawer(id) {
   const lead = getLeads().find(l => l.id === id);
   if (!lead) return;
   const status = lead.leadStatus || 'New';
+  const showLeadActions = currentPage !== 'deals' && status === 'New';
   const activities = getActivities().filter(a => a.leadId === id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const memberColors = { 'Anna Nguyen': '#d97706', 'Duy Trần': '#6366f1', 'Mai Lê': '#10b981', 'Hùng Võ': '#8b5cf6' };
   const mColor = memberColors[lead.assignedTo] || '#6366f1';
@@ -241,7 +249,7 @@ function openLeadDrawer(id) {
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px">
         <select class="form-input" id="drawer-reassign-select" style="flex:1;font-size:12px">
           <option value="">— Reassign to —</option>
-          ${ACCOUNTS.filter(a => a.role !== 'manager').map(a => `<option value="${a.name}" ${lead.assignedTo === a.name ? 'selected' : ''}>${a.name}</option>`).join('')}
+          ${getSalesMemberAccounts().map(a => `<option value="${a.name}" ${lead.assignedTo === a.name ? 'selected' : ''}>${a.name}</option>`).join('')}
         </select>
         <button class="btn btn-primary btn-sm" onclick="reassignLead('${lead.id}')"><i class="fa-solid fa-user-check"></i> Assign</button>
       </div>` : ''}
@@ -251,7 +259,7 @@ function openLeadDrawer(id) {
       <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;display:flex;align-items:center;gap:6px"><i class="fa-solid fa-note-sticky" style="font-size:10px"></i> Notes</div>
       <div style="background:var(--amber-bg);border:1px solid rgba(245,158,11,0.2);border-radius:var(--radius);padding:12px;font-size:12px;color:var(--text-secondary);line-height:1.6">${lead.notes}</div>
     </div>` : ''}
-    ${status === 'New' ? `
+    ${showLeadActions ? `
     <div style="margin-bottom:16px;background:var(--accent-light);border:1px solid rgba(99,102,241,0.2);border-radius:var(--radius-md);padding:14px">
       <div style="font-size:10px;font-weight:700;color:var(--accent-text);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;display:flex;align-items:center;gap:6px"><i class="fa-solid fa-pen-to-square" style="font-size:10px"></i> Log Live Action Interaction</div>
       <div style="display:flex;flex-direction:column;gap:10px">
@@ -296,7 +304,7 @@ function openLeadDrawer(id) {
 
   document.getElementById('drawer-footer').innerHTML = `
     <div style="display:flex;gap:8px">
-      ${status === 'New' ? `
+      ${showLeadActions ? `
         <button class="btn btn-success btn-sm" onclick="closeDrawer();openConvertModal('${lead.id}')"><i class="fa-solid fa-check"></i> Convert</button>
         <button class="btn btn-danger btn-sm" onclick="closeDrawer();openRejectModal('${lead.id}')"><i class="fa-solid fa-xmark"></i> Reject</button>
       ` : ''}
@@ -355,8 +363,12 @@ function reassignLead(leadId) {
   const leads = getLeads();
   const idx = leads.findIndex(l => l.id === leadId);
   if (idx === -1) return;
+  const assignedAccount = getSalesMemberAccounts().find(a => a.name === newAssignee);
+  if (!assignedAccount) { showToast('Please select a valid sales member from Supabase', 'error'); return; }
   const oldAssignee = leads[idx].assignedTo || '—';
   leads[idx].assignedTo = newAssignee;
+  leads[idx].ownerId = assignedAccount.id;
+  leads[idx].salesId = assignedAccount.salesId;
   leads[idx].updatedAt = new Date().toISOString();
   saveLeads(leads);
   const acts = getActivities();
@@ -501,6 +513,39 @@ function confirmRejectLead() {
 }
 
 let _addLeadActivities = [];
+function getSalesMemberAccounts() {
+  const preferredOrder = ['Hoàng Vân Chi', 'Lê Mỹ Linh', 'Nguyễn Mai Phương', 'Bùi Nguyễn Hải Anh', 'Nguyễn Hải Minh'];
+  const fallbackMembers = preferredOrder.map((name, idx) => ({
+    id: idx + 1,
+    name,
+    role: 'member',
+    initials: name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3),
+  }));
+  const accounts = typeof ACCOUNTS !== 'undefined' ? ACCOUNTS : [];
+  const supabaseMembers = accounts.filter(a =>
+    preferredOrder.includes(a.name) || (a.role && a.role !== 'manager')
+  );
+  const byName = new Map(fallbackMembers.map(a => [a.name, a]));
+  supabaseMembers.forEach(a => byName.set(a.name, { ...byName.get(a.name), ...a, role: 'member' }));
+  return Array.from(byName.values())
+    .slice()
+    .sort((a, b) => {
+      const ai = preferredOrder.indexOf(a.name);
+      const bi = preferredOrder.indexOf(b.name);
+      if (ai !== -1 || bi !== -1) return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      return a.name.localeCompare(b.name);
+    });
+}
+
+function populateAddLeadAssignee() {
+  const select = document.getElementById('new-lead-assigned');
+  if (!select) return;
+  const members = getSalesMemberAccounts();
+  select.innerHTML = '<option value="">Select sales member...</option>' + members.map(a => {
+    return `<option value="${a.name}" data-owner-id="${a.id}" data-sales-id="${a.salesId || ''}">${a.name}</option>`;
+  }).join('');
+}
+
 function openAddLeadModal() {
   _addLeadActivities = [];
   const now = new Date();
@@ -513,6 +558,7 @@ function openAddLeadModal() {
   document.getElementById('new-lead-notes-counter').textContent = '0/500';
   document.getElementById('new-lead-source-other').style.display = 'none';
   document.getElementById('new-lead-activities-list').innerHTML = '';
+  populateAddLeadAssignee();
   const assignedWrap = document.getElementById('new-lead-assigned-wrap');
   if (assignedWrap) assignedWrap.style.display = CURRENT_USER.role === 'manager' ? 'block' : 'none';
   openModal('add-lead-modal');
@@ -579,12 +625,16 @@ function saveNewLead() {
   const source = g('new-lead-source');
   const isManager = CURRENT_USER.role === 'manager';
   const assignedTo = isManager ? g('new-lead-assigned') : CURRENT_USER.name;
+  const assignedAccount = isManager
+    ? getSalesMemberAccounts().find(a => a.name === assignedTo)
+    : (typeof ACCOUNTS !== 'undefined' ? ACCOUNTS.find(a => a.name === CURRENT_USER.name) : CURRENT_USER);
   if (!name) { showToast('Full Name is required', 'error'); return; }
   if (!company) { showToast('Company is required', 'error'); return; }
   if (!industry) { showToast('Industry is required', 'error'); return; }
   if (!email) { showToast('Email is required', 'error'); return; }
   if (!source) { showToast('Lead Source is required', 'error'); return; }
   if (isManager && !assignedTo) { showToast('Assigned To is required', 'error'); return; }
+  if (isManager && !assignedAccount) { showToast('Please select a valid sales member from Supabase', 'error'); return; }
 
   const now = new Date().toISOString();
   const newLead = {
@@ -600,6 +650,8 @@ function saveNewLead() {
     stage: 'Prospecting',
     leadStatus: 'New',
     assignedTo,
+    ownerId: assignedAccount?.id,
+    salesId: assignedAccount?.salesId,
     notes: g('new-lead-notes') || '',
     createdAt: now,
     updatedAt: now
@@ -703,4 +755,5 @@ function updateLeadsBadge() {
   const newCount = getLeads().filter(l => (l.leadStatus || 'New') === 'New').length;
   const badge = document.getElementById('badge-leads');
   if (badge) { badge.textContent = newCount; badge.style.display = newCount > 0 ? 'inline' : 'none'; }
+  if (typeof renderNotifications === 'function') renderNotifications();
 }

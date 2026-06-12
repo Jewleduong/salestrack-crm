@@ -66,7 +66,7 @@
   }
   function scopeLeads(arr) {
     if (isManager()) return arr;
-    return arr.filter(l => !l.ownerId || l.ownerId === CURRENT_USER.id);
+    return arr.filter(l => !l.ownerId || l.ownerId === CURRENT_USER.id || l.assignedTo === CURRENT_USER.name);
   }
 
   function sparkBar(pct, color) {
@@ -74,10 +74,33 @@
   }
 
   function daysSinceLastActivity(leadId) {
+    const lead = getLeads().find(l => l.id === leadId);
     const acts = getActivities().filter(a => a.leadId === leadId && !a.isScheduled);
-    if (!acts.length) return 9999;
-    const last = Math.max(...acts.map(a => new Date(a.createdAt || a.date).getTime()));
+    const stamps = acts
+      .map(a => new Date(a.createdAt || a.date).getTime())
+      .filter(Number.isFinite);
+    const leadTouch = new Date(lead?.updatedAt || lead?.createdAt || 0).getTime();
+    if (Number.isFinite(leadTouch) && leadTouch > 0) stamps.push(leadTouch);
+    if (!stamps.length) return 9999;
+    const last = Math.max(...stamps);
     return Math.floor((Date.now() - last) / 86400000);
+  }
+
+  function isTodoOverdue(todo) {
+    if (!todo || todo.done || !todo.scheduledDate) return false;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const dueDate = new Date(todo.scheduledDate + 'T00:00:00');
+    return Number.isFinite(dueDate.getTime()) && dueDate < todayStart;
+  }
+
+  function overdueTodosForLead(lead) {
+    if (!lead) return [];
+    return scopeSched(getScheduled()).filter(todo => {
+      const sameLead = String(todo.leadId || '') === String(lead.id || '')
+        || ((todo.leadName || '') === (lead.name || '') && (todo.company || '') === (lead.company || ''));
+      return sameLead && isTodoOverdue(todo);
+    }).sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
   }
 
   window.getLeadTemp = function (leadId) {
@@ -330,8 +353,7 @@
     const badge = document.getElementById('todo-badge');
     const dateEl = document.getElementById('todo-date-label');
     const listEl = document.getElementById('todo-list');
-    const allScoped = isManager() ? allSched : allSched.filter(s => s.ownerId === CURRENT_USER.id || s.assignedTo === CURRENT_USER.id);
-    const pending = allScoped.filter(s => new Date(s.scheduledDate).toDateString() === today && !s.done).length;
+    const pending = sched.filter(s => new Date(s.scheduledDate).toDateString() === today && !s.done).length;
     if (badge) { badge.textContent = pending; badge.style.display = pending > 0 ? 'inline' : 'none'; }
     if (dateEl) dateEl.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
     if (!listEl) return;
@@ -357,9 +379,8 @@
     }
 
     const renderItem = (s, isUpcoming) => {
-      const overdue = !isUpcoming && !s.done && new Date(s.scheduledDate) < new Date();
-      const bg = s.done ? 'var(--bg-input)' : overdue ? 'var(--red-bg)' : 'var(--bg-input)';
-      const border = s.done ? 'var(--border)' : overdue ? 'rgba(239,68,68,0.3)' : 'var(--border)';
+      const bg = 'var(--bg-input)';
+      const border = 'var(--border)';
       const assignedAcc = ACCOUNTS.find(a => a.id === (s.assignedTo ?? s.ownerId));
       const creatorAcc = ACCOUNTS.find(a => a.id === s.ownerId);
       const isAssigned = s.assignedTo !== undefined && s.assignedTo !== s.ownerId;
@@ -380,7 +401,6 @@
               <span style="font-size:11px;font-weight:700;color:${getTypeColor(s.type)}">${s.type}</span>
               <span style="font-size:12px;font-weight:600;${s.done ? 'text-decoration:line-through;' : ''}">${s.leadName}</span>
               ${tag}
-              ${overdue ? '<span style="font-size:9px;background:var(--red-bg);color:var(--red-text);padding:1px 5px;border-radius:4px;font-weight:700">OVERDUE</span>' : ''}
               <span style="font-size:10px;color:var(--text-muted);margin-left:auto">${isUpcoming ? formatDate(s.scheduledDate) : (s.scheduledTime || '')}</span>
             </div>
             <div style="font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.agenda || s.notes || '—'}</div>
@@ -418,18 +438,27 @@
     removeScheduled(id, _renderTodayTodos);
   };
 
-  function _renderColdAlerts() {
+  function getTemperatureAlertLeads() {
     const leads = scopeLeads(getLeads());
+    const rules = getLeadRules();
+    return leads
+      .filter(l => (l.leadStatus || 'New') === 'New')
+      .filter(l => !['Closed Won', 'Closed Lost'].includes(l.stage) && rules.stages.includes(l.stage))
+      .map(l => {
+        const overdueTodos = overdueTodosForLead(l);
+        return { ...l, temp: getLeadTemp(l.id), days: daysSinceLastActivity(l.id), overdueTodos };
+      })
+      .filter(l => l.temp !== 'warm' || l.overdueTodos.length > 0)
+      .sort((a, b) => (b.overdueTodos.length > 0) - (a.overdueTodos.length > 0) || b.days - a.days);
+  }
+
+  function _renderColdAlerts() {
     const rules = getLeadRules();
     const alertEl = document.getElementById('cold-lead-alerts');
     const ruleDesc = document.getElementById('alert-rule-desc');
     const badge = document.getElementById('alert-badge');
-    if (ruleDesc) ruleDesc.textContent = `Warm: >${rules.warmDays}d · Cold: >${rules.coldDays}d inactive`;
-    const alertLeads = leads
-      .filter(l => !['Closed Won', 'Closed Lost'].includes(l.stage) && rules.stages.includes(l.stage))
-      .map(l => ({ ...l, temp: getLeadTemp(l.id), days: daysSinceLastActivity(l.id) }))
-      .filter(l => l.temp !== 'warm')
-      .sort((a, b) => b.days - a.days);
+    if (ruleDesc) ruleDesc.textContent = `Overdue tasks · Warm: >${rules.warmDays}d · Cold: >${rules.coldDays}d inactive`;
+    const alertLeads = getTemperatureAlertLeads();
     if (badge) { badge.textContent = alertLeads.length; badge.style.display = alertLeads.length > 0 ? 'inline' : 'none'; }
     if (!alertEl) return;
     if (!alertLeads.length) {
@@ -438,12 +467,16 @@
     }
     alertEl.innerHTML = alertLeads.map(l => {
       const isCold = l.temp === 'cold';
-      const bg = isCold ? 'var(--blue-bg)' : 'var(--amber-bg)';
-      const border = isCold ? 'rgba(59,130,246,0.25)' : 'rgba(245,158,11,0.25)';
-      const color = isCold ? 'var(--blue-text)' : 'var(--amber-text)';
-      const icon = isCold ? 'fa-snowflake' : 'fa-temperature-half';
-      const label = isCold ? 'Cold' : 'Cooling';
+      const hasOverdue = l.overdueTodos.length > 0;
+      const bg = hasOverdue ? 'var(--red-bg)' : isCold ? 'var(--blue-bg)' : 'var(--amber-bg)';
+      const border = hasOverdue ? 'rgba(239,68,68,0.3)' : isCold ? 'rgba(59,130,246,0.25)' : 'rgba(245,158,11,0.25)';
+      const color = hasOverdue ? 'var(--red-text)' : isCold ? 'var(--blue-text)' : 'var(--amber-text)';
+      const icon = hasOverdue ? 'fa-triangle-exclamation' : isCold ? 'fa-snowflake' : 'fa-temperature-half';
+      const label = hasOverdue ? 'Overdue' : isCold ? 'Cold' : 'Cooling';
       const ownerAcc = isManager() ? ACCOUNTS.find(a => a.id === l.ownerId) : null;
+      const overdueText = hasOverdue
+        ? `${l.overdueTodos.length} overdue task${l.overdueTodos.length > 1 ? 's' : ''} · oldest due ${formatDate(l.overdueTodos[0].scheduledDate)}`
+        : (l.days === 9999 ? 'No activity yet' : l.days + 'd without activity');
       return `
         <div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid ${border};border-radius:var(--radius-md);background:${bg};margin-bottom:6px">
           <div style="width:30px;height:30px;border-radius:50%;background:${color};opacity:.15;position:relative;flex-shrink:0">
@@ -456,7 +489,7 @@
               ${ownerAcc ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${ownerAcc.color}22;color:${ownerAcc.color};font-weight:700">${ownerAcc.initials}</span>` : ''}
               <span style="font-size:9px;font-weight:700;margin-left:auto;color:${color}">${label}</span>
             </div>
-            <div style="font-size:11px;color:${color}">${l.days === 9999 ? 'No activity yet' : l.days + 'd without activity'}</div>
+            <div style="font-size:11px;color:${color}">${overdueText}</div>
           </div>
           <button class="btn btn-sm btn-secondary" onclick="openLogActivity('${l.id}','${l.name.replace(/'/g, "\\'")}','${l.stage}')"><i class="fa-solid fa-plus"></i> Log</button>
         </div>`;
@@ -517,7 +550,7 @@
   };
 
   window.renderLeadStatusList = function () {
-    const allLeads = getLeads().filter(l => !['Closed Won', 'Closed Lost'].includes(l.stage));
+    const allLeads = getLeads().filter(l => (l.leadStatus || 'New') === 'New' && !['Closed Won', 'Closed Lost'].includes(l.stage));
     const visibleLeads = scopeLeads(allLeads);
     const acts = scopeActs(getActivities().filter(a => !a.isScheduled));
     const actTypeFilter = document.getElementById('lead-act-filter')?.value || '';
@@ -581,20 +614,20 @@
     const myActs = scopeActs(allActs);
     const allSched = getScheduled();
     const mySched = scopeSched(allSched);
-    const allLeads = getLeads();
+    const allLeads = scopeLeads(getLeads());
     const kpiEl = document.getElementById('act-kpis');
     if (kpiEl) {
       const calls = myActs.filter(a => a.type === 'Call').length;
       const emails = myActs.filter(a => a.type === 'Email').length;
       const meetings = myActs.filter(a => a.type === 'Meeting').length;
       const todaySched = mySched.filter(s => { const d = new Date(s.scheduledDate); return d.toDateString() === new Date().toDateString() && !s.done; }).length;
-      const coldCount = allLeads.filter(l => !['Closed Won', 'Closed Lost'].includes(l.stage) && getLeadTemp(l.id) === 'cold').length;
+      const coldCount = getTemperatureAlertLeads().length;
       kpiEl.innerHTML = `
         <div class="metric-card" style="border-left-color:var(--green)"><div class="metric-label">📞 Calls</div><div class="metric-value" style="color:var(--green)">${calls}</div><div class="metric-sub">${isManager() ? 'team total' : 'my total'}</div></div>
         <div class="metric-card" style="border-left-color:var(--blue)"><div class="metric-label">📧 Emails</div><div class="metric-value" style="color:var(--blue)">${emails}</div><div class="metric-sub">logged</div></div>
         <div class="metric-card" style="border-left-color:var(--purple)"><div class="metric-label">🤝 Meetings</div><div class="metric-value" style="color:var(--purple)">${meetings}</div><div class="metric-sub">held</div></div>
         <div class="metric-card" style="border-left-color:var(--accent)"><div class="metric-label">📅 Today's Tasks</div><div class="metric-value" style="color:var(--accent)">${todaySched}</div><div class="metric-sub">pending</div></div>
-        <div class="metric-card" style="border-left-color:var(--red)"><div class="metric-label">🧊 Cold Leads</div><div class="metric-value" style="color:var(--red)">${coldCount}</div><div class="metric-sub">need attention</div></div>`;
+        <div class="metric-card" style="border-left-color:var(--red)"><div class="metric-label">🧊 Lead Alerts</div><div class="metric-value" style="color:var(--red)">${coldCount}</div><div class="metric-sub">cooling / cold</div></div>`;
     }
     _renderTodayTodos();
     _renderColdAlerts();

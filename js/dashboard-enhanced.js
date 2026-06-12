@@ -36,6 +36,7 @@
 
   let pipelineChart = null;
   let leadDonutChart = null;
+  let leadVolumeOwnerFilter = 'ALL';
 
   function leadsToDeals(leads) {
     return leads.map(l => ({
@@ -69,6 +70,19 @@
     return deals;
   }
 
+  function getScopedLeadsForComposition() {
+    const leads = typeof getLeads === 'function' ? getLeads() : [];
+    if (!leads.length) return [];
+    if (CURRENT_USER.role !== 'manager') {
+      return leads.filter(l => l.ownerId === CURRENT_USER.id || l.assignedTo === CURRENT_USER.name);
+    }
+    const filter = document.getElementById('lead-volume-member-filter')?.value || leadVolumeOwnerFilter || 'ALL';
+    leadVolumeOwnerFilter = filter;
+    if (filter === 'ALL') return leads;
+    const member = ACCOUNTS.find(a => String(a.id) === String(filter));
+    return leads.filter(l => String(l.ownerId) === String(filter) || (member && l.assignedTo === member.name));
+  }
+
   window.adjustCohortFilterDates = function (type) {
     const start = document.getElementById('dashboard-start-date');
     const end = document.getElementById('dashboard-end-date');
@@ -81,6 +95,11 @@
 
   window.triggerAsynchronousDashboardRecalc = function () {
     setTimeout(() => window.renderDashboardCharts(), 200);
+  };
+
+  window.setLeadVolumeOwnerFilter = function (value) {
+    leadVolumeOwnerFilter = value || 'ALL';
+    window.renderLeadStatusDonutChart();
   };
 
   window.getDashboardHTML = function () {
@@ -120,7 +139,13 @@
 
     <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;margin-bottom:20px">
       <div class="card" style="display:flex;flex-direction:column;height:320px">
-        <div class="card-title"><i class="fa-solid fa-chart-pie" style="color:var(--accent);margin-right:6px"></i> Lead Volume Composition</div>
+        <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <span><i class="fa-solid fa-chart-pie" style="color:var(--accent);margin-right:6px"></i> Lead Volume Composition</span>
+          ${CURRENT_USER.role === 'manager' ? `<select id="lead-volume-member-filter" onchange="setLeadVolumeOwnerFilter(this.value)" class="form-input" style="width:auto;padding:4px 8px;font-size:11px">
+            <option value="ALL">All members</option>
+            ${ACCOUNTS.map(a => `<option value="${a.id}" ${String(leadVolumeOwnerFilter) === String(a.id) ? 'selected' : ''}>${a.name}</option>`).join('')}
+          </select>` : ''}
+        </div>
         <div style="flex:1;position:relative;min-height:0"><canvas id="leadStatusChart"></canvas></div>
       </div>
       <div class="card" style="display:flex;flex-direction:column;height:320px">
@@ -242,7 +267,7 @@
     const textColor = isDark ? '#f1f5f9' : '#334155';
     const borderColor = isDark ? '#1e293b' : '#ffffff';
     let composition = CURRENT_USER.role === 'manager' ? [45, 120, 25] : [15, 42, 8];
-    const leads = typeof getLeads === 'function' ? getLeads() : [];
+    const leads = getScopedLeadsForComposition();
     if (leads.length) {
       composition = [
         leads.filter(l => l.leadStatus === 'New' || l.stage === 'Prospecting').length || 1,
